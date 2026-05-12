@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="PROCON Arapiraca - Sistema Integrado", layout="wide")
+st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", layout="wide")
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
 try:

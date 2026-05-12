@@ -15,7 +15,6 @@ except Exception as e:
 
 def ler_aba(nome_aba):
     try:
-        # ttl=0 garante que os dados estejam sempre atualizados
         df = conn.read(worksheet=nome_aba, ttl=0)
         return df.dropna(how="all")
     except Exception as e:
@@ -91,7 +90,6 @@ if menu == "Cadastrar Processo":
         if st.form_submit_button("Salvar"):
             df_p = ler_aba("processos")
             df_h = ler_aba("historico")
-            # Gerar ID robusto
             p_id = int(df_p['id'].max() + 1) if not df_p.empty else 1
             
             novo_p = pd.DataFrame([{"id": p_id, "numero": num, "consumidor": cons, "fornecedor": forn, "tramitacao": tram, "anotacoes": obs}])
@@ -103,23 +101,32 @@ if menu == "Cadastrar Processo":
 
 elif menu == "Listar Processos":
     st.header("🔍 Consulta")
-    # Carregamos os dados mestres
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
     
     busca = st.text_input("Buscar por nome ou número")
     
-    # Criamos uma cópia para exibição/filtro para não afetar o dataframe original
     df_exibicao = df_p_master.copy()
     if busca:
-        df_exibicao = df_exibicao[
-            df_exibicao['numero'].astype(str).str.contains(busca, case=False) | 
-            df_exibicao['consumidor'].str.contains(busca, case=False)
-        ]
+        # --- LÓGICA DE PESQUISA POR ALGORITMOS (IGNORANDO PONTUAÇÃO) ---
+        # Extrai apenas os dígitos da busca do usuário
+        busca_numerica = "".join(filter(str.isdigit, busca))
+        
+        # Filtro por nome (Consumidor) - comportamento padrão
+        filtro_nome = df_exibicao['consumidor'].str.contains(busca, case=False, na=False)
+        
+        if busca_numerica:
+            # Se houver números na busca, limpa a coluna 'numero' da planilha (remove \D = não dígitos)
+            # e compara com a busca numérica
+            filtro_numero = df_exibicao['numero'].astype(str).str.replace(r'\D', '', regex=True).str.contains(busca_numerica, na=False)
+            df_exibicao = df_exibicao[filtro_nome | filtro_numero]
+        else:
+            # Se não houver números na busca, filtra apenas pelo nome ou busca textual no número
+            filtro_numero_textual = df_exibicao['numero'].astype(str).str.contains(busca, case=False, na=False)
+            df_exibicao = df_exibicao[filtro_nome | filtro_numero_textual]
 
     for _, p in df_exibicao.iterrows():
         with st.expander(f"📦 {p['numero']} - {p['consumidor']}"):
-            # --- DADOS DO PROCESSO ---
             c1, c2 = st.columns(2)
             with c1:
                 st.write(f"**Fornecedor:** {p['fornecedor']}")
@@ -129,11 +136,9 @@ elif menu == "Listar Processos":
             
             st.divider()
             
-            # --- HISTÓRICO (Filtrado pelo ID do processo) ---
             st.subheader("📜 Histórico de Tramitações")
             hist_p = df_h_master[df_h_master['processo_id'].astype(str) == str(p['id'])]
             if not hist_p.empty:
-                # Mostra o histórico ordenado pelo mais recente (pelo ID ou data)
                 st.dataframe(
                     hist_p[['data_mudanca', 'tramitacao_texto', 'usuario_responsavel']].sort_index(ascending=False), 
                     use_container_width=True,
@@ -144,13 +149,10 @@ elif menu == "Listar Processos":
 
             st.divider()
 
-            # --- ATUALIZAÇÃO ---
             nova_t = st.text_input("Nova Tramitação", key=f"in_{p['id']}")
             if st.button("Confirmar Atualização", key=f"btn_{p['id']}"):
                 if nova_t:
-                    # ATENÇÃO: Alteramos no dataframe MASTER para salvar tudo
                     df_p_master.loc[df_p_master['id'] == p['id'], 'tramitacao'] = nova_t
-                    
                     n_h = pd.DataFrame([{
                         "id": len(df_h_master) + 1,
                         "processo_id": p['id'],
@@ -158,11 +160,7 @@ elif menu == "Listar Processos":
                         "usuario_responsavel": st.session_state.usuario,
                         "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
                     }])
-                    
-                    # Salva o dataframe completo (sem filtros de busca)
                     salvar_dados("processos", df_p_master)
                     salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
-                    st.success("Atualizado com sucesso!")
+                    st.success("Atualizado!")
                     st.rerun()
-                else:
-                    st.warning("Informe o novo status.")

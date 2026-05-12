@@ -164,3 +164,27 @@ elif menu == "Listar Processos":
                     salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
                     st.success("Atualizado!")
                     st.rerun()
+
+# --- RODAPÉ PERSONALIZADO ---
+st.markdown(
+    """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: transparent;
+        color: #888;
+        text-align: center;
+        padding: 10px;
+        font-size: 12px;
+        font-weight: light;
+    }
+    </style>
+    <div class="footer">
+        Seindec AL - Sistema Extinto de Informações de Defesa do Consumidor de Alagoas
+    </div>
+    """,
+    unsafe_allow_html=True
+)

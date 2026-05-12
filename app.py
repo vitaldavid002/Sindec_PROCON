@@ -42,7 +42,7 @@ if 'usuario' not in st.session_state:
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("⚖️ Sistema PROCON")
+        st.title("⚖️ Sistema Seindec - PROCON Arapiraca")
         aba_l, aba_c = st.tabs(["Acessar", "Criar Conta"])
         
         with aba_l:

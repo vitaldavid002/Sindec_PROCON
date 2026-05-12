@@ -15,10 +15,25 @@ except Exception as e:
     st.stop()
 
 def ler_aba(nome_aba):
-    return conn.read(worksheet=nome_aba, ttl=0).dropna(how="all")
+    try:
+        # Forçamos a leitura sem cache (ttl=0)
+        df = conn.read(worksheet=nome_aba, ttl=0)
+        return df.dropna(how="all")
+    except Exception as e:
+        # Se a aba estiver vazia ou der erro, retorna um DataFrame com as colunas padrão
+        if nome_aba == "usuarios":
+            return pd.DataFrame(columns=["id", "login", "senha"])
+        elif nome_aba == "processos":
+            return pd.DataFrame(columns=["id", "numero", "consumidor", "fornecedor", "tramitacao", "anotacoes"])
+        else:
+            return pd.DataFrame(columns=["id", "processo_id", "tramitacao_texto", "usuario_responsavel", "data_mudanca"])
 
 def salvar_dados(nome_aba, df_novo):
-    conn.update(worksheet=nome_aba, data=df_novo)
+    try:
+        conn.update(worksheet=nome_aba, data=df_novo)
+        st.cache_data.clear() # Limpa o cache para ler o dado novo na sequência
+    except Exception as e:
+        st.error(f"Erro ao salvar na planilha: {e}")
 
 # --- CONTROLE DE ACESSO ---
 if 'logado' not in st.session_state:

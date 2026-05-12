@@ -7,7 +7,6 @@ from datetime import datetime
 st.set_page_config(page_title="PROCON Arapiraca - Sistema Integrado", layout="wide")
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
-# Certifique-se de que o link da planilha está nos Secrets do Streamlit Cloud
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
@@ -16,11 +15,10 @@ except Exception as e:
 
 def ler_aba(nome_aba):
     try:
-        # Forçamos a leitura sem cache (ttl=0)
+        # ttl=0 garante que os dados estejam sempre atualizados
         df = conn.read(worksheet=nome_aba, ttl=0)
         return df.dropna(how="all")
     except Exception as e:
-        # Se a aba estiver vazia ou der erro, retorna um DataFrame com as colunas padrão
         if nome_aba == "usuarios":
             return pd.DataFrame(columns=["id", "login", "senha"])
         elif nome_aba == "processos":
@@ -31,7 +29,7 @@ def ler_aba(nome_aba):
 def salvar_dados(nome_aba, df_novo):
     try:
         conn.update(worksheet=nome_aba, data=df_novo)
-        st.cache_data.clear() # Limpa o cache para ler o dado novo na sequência
+        st.cache_data.clear() 
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
 
@@ -93,6 +91,7 @@ if menu == "Cadastrar Processo":
         if st.form_submit_button("Salvar"):
             df_p = ler_aba("processos")
             df_h = ler_aba("historico")
+            # Gerar ID robusto
             p_id = int(df_p['id'].max() + 1) if not df_p.empty else 1
             
             novo_p = pd.DataFrame([{"id": p_id, "numero": num, "consumidor": cons, "fornecedor": forn, "tramitacao": tram, "anotacoes": obs}])
@@ -104,23 +103,66 @@ if menu == "Cadastrar Processo":
 
 elif menu == "Listar Processos":
     st.header("🔍 Consulta")
-    df_p = ler_aba("processos")
-    df_h = ler_aba("historico")
+    # Carregamos os dados mestres
+    df_p_master = ler_aba("processos")
+    df_h_master = ler_aba("historico")
     
     busca = st.text_input("Buscar por nome ou número")
+    
+    # Criamos uma cópia para exibição/filtro para não afetar o dataframe original
+    df_exibicao = df_p_master.copy()
     if busca:
-        df_p = df_p[df_p['numero'].str.contains(busca, case=False) | df_p['consumidor'].str.contains(busca, case=False)]
+        df_exibicao = df_exibicao[
+            df_exibicao['numero'].astype(str).str.contains(busca, case=False) | 
+            df_exibicao['consumidor'].str.contains(busca, case=False)
+        ]
 
-    for _, p in df_p.iterrows():
+    for _, p in df_exibicao.iterrows():
         with st.expander(f"📦 {p['numero']} - {p['consumidor']}"):
-            st.write(f"**Status:** {p['tramitacao']}")
-            st.write(f"**Obs:** {p['anotacoes']}")
+            # --- DADOS DO PROCESSO ---
+            c1, c2 = st.columns(2)
+            with c1:
+                st.write(f"**Fornecedor:** {p['fornecedor']}")
+                st.write(f"**Status Atual:** {p['tramitacao']}")
+            with c2:
+                st.write(f"**Anotações:** {p['anotacoes']}")
             
-            # Atualizar Status
-            nova_t = st.text_input("Atualizar Tramitação", key=f"in_{p['id']}")
-            if st.button("Confirmar", key=f"btn_{p['id']}"):
-                df_p.loc[df_p['id'] == p['id'], 'tramitacao'] = nova_t
-                n_h = pd.DataFrame([{"id": len(df_h)+1, "processo_id": p['id'], "tramitacao_texto": nova_t, "usuario_responsavel": st.session_state.usuario, "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")}])
-                salvar_dados("processos", df_p)
-                salvar_dados("historico", pd.concat([df_h, n_h], ignore_index=True))
-                st.rerun()
+            st.divider()
+            
+            # --- HISTÓRICO (Filtrado pelo ID do processo) ---
+            st.subheader("📜 Histórico de Tramitações")
+            hist_p = df_h_master[df_h_master['processo_id'].astype(str) == str(p['id'])]
+            if not hist_p.empty:
+                # Mostra o histórico ordenado pelo mais recente (pelo ID ou data)
+                st.dataframe(
+                    hist_p[['data_mudanca', 'tramitacao_texto', 'usuario_responsavel']].sort_index(ascending=False), 
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Nenhum histórico encontrado.")
+
+            st.divider()
+
+            # --- ATUALIZAÇÃO ---
+            nova_t = st.text_input("Nova Tramitação", key=f"in_{p['id']}")
+            if st.button("Confirmar Atualização", key=f"btn_{p['id']}"):
+                if nova_t:
+                    # ATENÇÃO: Alteramos no dataframe MASTER para salvar tudo
+                    df_p_master.loc[df_p_master['id'] == p['id'], 'tramitacao'] = nova_t
+                    
+                    n_h = pd.DataFrame([{
+                        "id": len(df_h_master) + 1,
+                        "processo_id": p['id'],
+                        "tramitacao_texto": nova_t,
+                        "usuario_responsavel": st.session_state.usuario,
+                        "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
+                    }])
+                    
+                    # Salva o dataframe completo (sem filtros de busca)
+                    salvar_dados("processos", df_p_master)
+                    salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
+                    st.success("Atualizado com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("Informe o novo status.")

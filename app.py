@@ -183,7 +183,7 @@ st.markdown(
     }
     </style>
     <div class="footer">
-        Seindec AL - Sistema Extinto de Informações de Defesa do Consumidor de Alagoas
+        Seindec AL - Sistema Extinto de Informações de Defesa do Consumidor de Alagoas - Unidade Arapiraca
     </div>
     """,
     unsafe_allow_html=True

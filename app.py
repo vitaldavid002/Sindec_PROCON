@@ -92,7 +92,11 @@ def criar_sessao(usuario):
     # Remove sessões antigas do mesmo usuário para evitar duplicidade
     df_s = df_s[df_s["usuario"] != usuario]
     
-    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry_texto}])
+    nova_linha = pd.DataFrame([{
+        "token": token, 
+        "usuario": usuario, 
+        "expiry": expira_texto
+    }])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
    # 2. Salva no Navegador (Cookie Real)
@@ -100,7 +104,7 @@ def criar_sessao(usuario):
     cookie_manager.set(
         "seindec_token", 
         token, 
-        expires_at=expiry_dt # Define a data exata de expiração
+        expires_at=expiry_data # Define a data exata de expiração
     )
     
     st.session_state.logado = True

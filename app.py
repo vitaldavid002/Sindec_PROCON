@@ -85,8 +85,9 @@ def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
     # Define expiração para 5 horas no futuro
     agora = datetime.now(FUSO_BR)
-    expiry_dt = agora + timedelta(hours=SESSION_HORAS)
-    expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+    data_expira = agora + timedelta(hours=SESSION_HORAS)
+    # Convertemos para texto para salvar na planilha
+    texto_expira = data_expira.strftime("%Y-%m-%d %H:%M:%S")
     
     df_s = ler_aba("sessoes")
     # Remove sessões antigas do mesmo usuário para evitar duplicidade
@@ -95,16 +96,17 @@ def criar_sessao(usuario):
     nova_linha = pd.DataFrame([{
         "token": token, 
         "usuario": usuario, 
-        "expiry": texto_expira
+        "expiry": texto_expira  # CORRIGIDO: nome da variável definido acima
     }])
-    salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
-   # 2. Salva no Navegador (Cookie Real)
-    # max_age é em segundos (5h * 3600s)
+    # CORRIGIDO: 'nova' não existia, o nome correto é 'nova_linha'
+    salvar_dados("sessoes", pd.concat([df_s, nova_linha], ignore_index=True))
+    
+    # 2. Salva no Navegador (Cookie Real)
     cookie_manager.set(
         "seindec_token", 
         token, 
-        expires_at=data_expira # Define a data exata de expiração
+        expires_at=data_expira # CORRIGIDO: variável definida no topo da função
     )
     
     st.session_state.logado = True
@@ -180,6 +182,8 @@ if not st.session_state.logado:
                 if not user_valido.empty:
                     criar_sessao(u_log)
                     st.success("Login realizado!")
+                    import time
+                    time.sleep(1) # Essencial para persistência do cookie
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")

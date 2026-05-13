@@ -275,9 +275,10 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
     lista_rs = [x.strip() for x in rs_default.split(";") if x.strip()]
     lista_cnpj = [x.strip() for x in cnpj_default.split(";") if x.strip()]
     
-    # Atualizar n_forn baseado nos dados
-    if é_edicao and len(lista_nf) > 0:
-        st.session_state.n_forn = len(lista_nf)
+    # Na edição, garantir que n_forn seja no mínimo a quantidade de fornecedores existentes
+    if é_edicao:
+        if st.session_state.n_forn < len(lista_nf):
+            st.session_state.n_forn = len(lista_nf)
     
     # Informações básicas do processo
     num = st.text_input("📌 Nº Processo", value=num_default)
@@ -330,7 +331,7 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
         "tramitacao": tram,
         "anotacoes": obs
     }
-
+    
 # =====================================================================
 # COMPONENTE: card de processo
 # =====================================================================

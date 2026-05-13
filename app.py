@@ -25,6 +25,23 @@ except Exception as e:
     st.error("❌ Erro na conexao com o Google Sheets. Verifique os Secrets.")
     st.stop()
 
+# --- INTERFACE DE CARREGAMENTO (OVERLAY) ---
+def carregar(texto="Processando..."):
+    """Cria um sombreamento na tela e um círculo giratório."""
+    st.markdown(
+        """
+        <style>
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5); z-index: 999999;
+            display: flex; justify-content: center; align-items: center;
+        }
+        </style>
+        <div id="overlay"></div>
+        """, unsafe_allow_html=True
+    )
+    return st.spinner(texto)
+
 # --- LEITURA E ESCRITA ---
 def ler_aba(nome_aba):
     try:
@@ -46,8 +63,11 @@ def ler_aba(nome_aba):
 
 def salvar_dados(nome_aba, df_novo):
     try:
+      with carregar(f"Atualizando banco de dados ({nome_aba})..."):
         conn.update(worksheet=nome_aba, data=df_novo)
         st.cache_data.clear()
+        import time
+        time.sleep(1)
     except Exception as e:
         st.error(f"❌ Erro ao salvar: {e}")
 
@@ -180,6 +200,7 @@ if not st.session_state.logado:
                 df_u = ler_aba("usuarios")
                 user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
                 if not user_valido.empty:
+                  with carregar("Autenticando e preparando ambiente..."):
                     criar_sessao(u_log)
                     st.success("Login realizado!")
                     import time

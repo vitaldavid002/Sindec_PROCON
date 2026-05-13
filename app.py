@@ -244,7 +244,7 @@ if st.sidebar.button("🚪 Sair"):
     st.rerun()
 
 # =====================================================================
-# COMPONENTE: card de processo
+# COMPONENTE: card de processo - ATUALIZADO
 # =====================================================================
 def exibir_processo(p, df_p_master, df_h_master, chave):
     c1, c2 = st.columns(2)
@@ -254,10 +254,10 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     with c2:
         lista_nf = str(p.get('nome_fantasia_fornecedor','')).split(';')
         lista_rs = str(p.get('razao_social_fornecedor','')).split(';')
-        lista_cnpj = str(p.get('cnpj_fornecedor','')).split(';')
+        lista_c = str(p.get('cnpj_fornecedor','')).split(';')
         st.write("**🏢 Fornecedor(es):**")
-        for nf, rs, cnpj in zip(lista_nf, lista_rs, lista_cnpj):
-            if nf.strip() or rs.strip():
+        for nf, rs, cnpj in zip(lista_nf, lista_rs, lista_c):
+            if nf.strip():
                 st.write(f"- {nf.strip()} ({rs.strip()}) | CNPJ: `{cnpj.strip()}`")
         st.write(f"**📝 Anotações:** {p.get('anotacoes','')}")
 
@@ -279,16 +279,20 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 e_cons = st.text_input("👤 Consumidor", value=str(p.get("consumidor","")))
             with cb:
                 e_cpf = st.text_input("🪪 CPF do Consumidor", value=str(p.get("cpf_consumidor","")))
-            cc, cd = st.columns(2)
+            
+            st.divider()
+            st.subheader("🏢 Fornecedores")
+            
+            cc, cd, ce = st.columns([1.5, 1.5, 1])
             with cc:
-                e_nf = st.text_area("🏢 Nome Fantasia Fornecedor(es)", value=str(p.get("nome_fantasia_fornecedor","")), help="Separe por ponto e vírgula")
+                e_nf = st.text_area("Nome Fantasia", value=str(p.get("nome_fantasia_fornecedor","")), help="Separe por ponto e vírgula")
             with cd:
-                e_rs = st.text_area("📊 Razão Social Fornecedor(es)", value=str(p.get("razao_social_fornecedor","")), help="Separe por ponto e vírgula")
-            ce, cf = st.columns(2)
+                e_rs = st.text_area("Razão Social", value=str(p.get("razao_social_fornecedor","")), help="Separe por ponto e vírgula")
             with ce:
-                e_cnpj = st.text_area("📄 CNPJ(s)", value=str(p.get("cnpj_fornecedor","")), help="Separe por ponto e vírgula")
-            with cf:
-                e_tram = st.text_input("📊 Tramitação Atual", value=str(p.get("tramitacao","")))
+                e_cnpj = st.text_area("CNPJ(s)", value=str(p.get("cnpj_fornecedor","")), help="Separe por ponto e vírgula")
+            
+            st.divider()
+            e_tram = st.text_input("📊 Tramitação Atual", value=str(p.get("tramitacao","")))
             e_obs  = st.text_area("📝 Anotações", value=str(p.get("anotacoes","")))
             if st.form_submit_button("💾 Salvar Alterações"):
                 idx = df_p_master[df_p_master["id"] == p["id"]].index
@@ -337,31 +341,35 @@ if menu == "Cadastrar Processo":
             cpf  = st.text_input("🪪 CPF do Consumidor", placeholder="000.000.000-00")
 
         st.divider()
-        
-        st.subheader("🏢 Fornecedores")
-        col_aux1, col_aux2, col_aux3 = st.columns([1, 1, 10])
 
-        if col_aux1.button("➕", help="Adicionar Fornecedor", key="btn_add_forn"):
+        st.subheader("🏢 Fornecedores")
+        
+        # Controles de quantidade DENTRO do form
+        col_aux1, col_aux2, col_aux3 = st.columns([1, 1, 10])
+        
+        if col_aux1.form_submit_button("➕", help="Adicionar Fornecedor"):
             if st.session_state.n_forn < 15:
                 st.session_state.n_forn += 1
                 st.rerun()
 
-        if col_aux2.button("➖", help="Remover Fornecedor", key="btn_rem_forn"):
+        if col_aux2.form_submit_button("➖", help="Remover Fornecedor"):
             if st.session_state.n_forn > 1:
                 st.session_state.n_forn -= 1
                 st.rerun()
 
         col_aux3.markdown(f"**Quantidade atual: {st.session_state.n_forn}** (Máximo 15)")
 
+        st.divider()
+
         nf_inputs = []
         rs_inputs = []
         c_inputs = []
 
         for i in range(st.session_state.n_forn):
-            nf_col, rs_col, c_col = st.columns([2, 2, 1])
-            nf_inputs.append(nf_col.text_input(f"Nome Fantasia {i+1}", key=f"nf_{i}"))
-            rs_inputs.append(rs_col.text_input(f"Razão Social {i+1}", key=f"rs_{i}"))
-            c_inputs.append(c_col.text_input(f"CNPJ {i+1}", key=f"c_{i}"))
+            col_nf, col_rs, col_cnpj = st.columns([1.5, 1.5, 1])
+            nf_inputs.append(col_nf.text_input(f"Nome Fantasia {i+1}", key=f"nf_{i}"))
+            rs_inputs.append(col_rs.text_input(f"Razão Social {i+1}", key=f"rs_{i}"))
+            c_inputs.append(col_cnpj.text_input(f"CNPJ {i+1}", key=f"c_{i}"))
 
         st.divider()
         tram = st.text_input("📊 Situação Inicial")
@@ -381,7 +389,8 @@ if menu == "Cadastrar Processo":
 
                 novo_p = pd.DataFrame([{
                     "id": p_id, "numero": num, "consumidor": cons, "cpf_consumidor": cpf,
-                    "nome_fantasia_fornecedor": nf_final, "razao_social_fornecedor": rs_final, "cnpj_fornecedor": cnpj_final,
+                    "nome_fantasia_fornecedor": nf_final, "razao_social_fornecedor": rs_final, 
+                    "cnpj_fornecedor": cnpj_final,
                     "tramitacao": tram, "anotacoes": obs
                 }])
                 novo_h = pd.DataFrame([{
@@ -436,10 +445,12 @@ elif menu == "Pesquisa Avancada":
                                          placeholder="Ex: 123.456.789-00 (Pontuação ignorada)")
         with col2:
             f_nome_fantasia = st.text_input("🏢 Nome Fantasia do Fornecedor")
-            f_razao_social = st.text_input("📊 Razão Social do Fornecedor")
+            f_razao_social  = st.text_input("📊 Razão Social do Fornecedor")
             f_cnpj       = st.text_input("📄 CNPJ do Fornecedor",
                                          placeholder="Ex: 00.000.000/0000-00 (Pontuação ignorada)")
-            f_tramitacao = st.text_input("📊 Tramitação Atual")
+
+        st.divider()
+        f_tramitacao = st.text_input("📊 Tramitação Atual")
 
         pesquisar = st.form_submit_button("🚀 Pesquisar")
 
@@ -457,9 +468,11 @@ elif menu == "Pesquisa Avancada":
         if f_consumidor:
             df_res = df_res[filtro_texto(df_res["consumidor"], f_consumidor)]
         if f_nome_fantasia:
-            df_res = df_res[filtro_texto(df_res["nome_fantasia_fornecedor"], f_nome_fantasia)]
+            col_nf = df_res["nome_fantasia_fornecedor"] if "nome_fantasia_fornecedor" in df_res.columns else pd.Series([""] * len(df_res), index=df_res.index)
+            df_res = df_res[filtro_texto(col_nf, f_nome_fantasia)]
         if f_razao_social:
-            df_res = df_res[filtro_texto(df_res["razao_social_fornecedor"], f_razao_social)]
+            col_rs = df_res["razao_social_fornecedor"] if "razao_social_fornecedor" in df_res.columns else pd.Series([""] * len(df_res), index=df_res.index)
+            df_res = df_res[filtro_texto(col_rs, f_razao_social)]
         if f_tramitacao:
             df_res = df_res[filtro_texto(df_res["tramitacao"], f_tramitacao)]
 

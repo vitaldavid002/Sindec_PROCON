@@ -1,7 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from streamlit_cookies_controller import CookieController
 from datetime import datetime, timedelta, timezone
 import secrets
 import re
@@ -22,9 +21,6 @@ FUSO_BR = timezone(timedelta(hours=-3))
 st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", page_icon="⚖️", layout="wide")
 
 SESSION_HORAS = 5
-
-# INICIA O GERENCIADOR DE COOKIES
-cookies = CookieController()
 
 # --- CONEXAO COM GOOGLE SHEETS ---
 try:

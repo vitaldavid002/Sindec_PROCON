@@ -390,20 +390,22 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 e_obs = form_data["anotacoes"]
                 
                 idx = df_p_master[df_p_master["id"] == p["id"]].index[0]
-                df_p_master.at[idx, "numero"] = e_num
-                df_p_master.at[idx, "consumidor"] = e_cons
-                df_p_master.at[idx, "cpf_consumidor"] = e_cpf
-                df_p_master.at[idx, "nome_fantasia_fornecedor"] = e_nf
-                df_p_master.at[idx, "razao_social_fornecedor"] = e_rs
-                df_p_master.at[idx, "cnpj_fornecedor"] = e_cnpj
-                df_p_master.at[idx, "tramitacao"] = e_tram
-                df_p_master.at[idx, "anotacoes"] = e_obs
+                
+                # Converter para string antes de atribuir
+                df_p_master.loc[idx, "numero"] = str(e_num)
+                df_p_master.loc[idx, "consumidor"] = str(e_cons)
+                df_p_master.loc[idx, "cpf_consumidor"] = str(e_cpf)
+                df_p_master.loc[idx, "nome_fantasia_fornecedor"] = str(e_nf)
+                df_p_master.loc[idx, "razao_social_fornecedor"] = str(e_rs)
+                df_p_master.loc[idx, "cnpj_fornecedor"] = str(e_cnpj)
+                df_p_master.loc[idx, "tramitacao"] = str(e_tram)
+                df_p_master.loc[idx, "anotacoes"] = str(e_obs)
                 
                 salvar_dados("processos", df_p_master)
                 st.session_state[edit_key] = False
                 st.success("✅ Processo atualizado!")
                 st.rerun()
-
+                
     st.subheader("📜 Andamento")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
     if not hist_p.empty:

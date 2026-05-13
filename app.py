@@ -133,10 +133,9 @@ if not st.session_state.logado:
         st.session_state.usuario = usuario_recuperado
         st.rerun()
     else:
-    # Se não recuperou, mostra Tela de Login/Cadastro
-    st.title("⚖️ Sistema Seindec Arapiraca")
-    tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
-
+   # TELA DE LOGIN / CADASTRO
+        st.title("⚖️ Sistema Seindec Arapiraca")
+        tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
     with tab_login:
         with st.form("form_login"):
             u_log = st.text_input("Usuário")

@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+from streamlit_cookies_controller import CookieController
 from datetime import datetime, timedelta, timezone
 import secrets
 import re
@@ -12,6 +13,9 @@ FUSO_BR = timezone(timedelta(hours=-3))
 st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", page_icon="⚖️", layout="wide")
 
 SESSION_HORAS = 5
+
+# INICIA O GERENCIADOR DE COOKIES
+cookies = CookieController()
 
 # --- CONEXAO COM GOOGLE SHEETS ---
 try:
@@ -71,34 +75,54 @@ def criar_sessao(usuario):
     df_s = df_s[df_s["usuario"] != usuario]
     nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
+    
+    # Salva o token no Cookie do navegador (expira junto com a sessão)
+    cookies.set("seindec_token", token, max_age=SESSION_HORAS * 3600)
+    # Mantém na URL como garantia
     st.query_params["token"] = token
+    
     st.session_state.logado = True
     st.session_state.usuario = usuario
 
 def verificar_sessao():
-    token = st.query_params.get("token")
+    # Tenta pegar o token do Cookie primeiro. Se não tiver, tenta da URL.
+    token = cookies.get("seindec_token") or st.query_params.get("token")
+    
     if not token:
         return None
+        
     df_s = ler_aba("sessoes")
     if df_s.empty:
         return None
+        
     linha = df_s[df_s["token"] == token]
     if linha.empty:
         return None
+        
     try:
         expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
     except Exception:
         return None
+        
     if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
+        # Se expirou, limpa o cookie
+        cookies.remove("seindec_token")
         return None
+        
+    # Garante que o token fique na URL durante a navegação
+    st.query_params["token"] = token
     return str(linha.iloc[0]["usuario"])
 
 def encerrar_sessao():
-    token = st.query_params.get("token")
+    token = cookies.get("seindec_token") or st.query_params.get("token")
     if token:
         df_s = ler_aba("sessoes")
         salvar_dados("sessoes", df_s[df_s["token"] != token])
+        
+    # Limpa as memórias (Cookie e URL)
+    cookies.remove("seindec_token")
     st.query_params.clear()
+    
     st.session_state.logado = False
     st.session_state.usuario = None
     st.session_state.nav_history = []

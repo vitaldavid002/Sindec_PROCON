@@ -92,7 +92,11 @@ def criar_sessao(usuario):
     st.session_state.usuario = usuario
 
 def verificar_sessao():
-    # 1. Tenta pegar o token do Cookie do navegador
+    # Se o cookie_manager por algum motivo não carregou, retornamos None
+    if cookie_manager is None:
+        return None
+        
+    # Tenta pegar o token do Cookie
     token = cookie_manager.get("seindec_token")
     
     if not token:
@@ -105,11 +109,14 @@ def verificar_sessao():
     if linha.empty: return None
         
     try:
-        expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
+        # Ajuste para garantir que a data seja lida corretamente
+        expiry_str = str(linha.iloc[0]["expiry"])
+        expiry = datetime.strptime(expiry_str, "%Y-%m-%d %H:%M:%S")
+        
         if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
             cookie_manager.delete("seindec_token")
             return None
-    except:
+    except Exception as e:
         return None
         
     return str(linha.iloc[0]["usuario"])

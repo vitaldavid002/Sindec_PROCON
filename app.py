@@ -359,7 +359,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
         st.session_state[edit_key] = not st.session_state[edit_key]
         st.session_state.n_forn = 1  # Reset para edição
         st.rerun()
-
+        
     if st.session_state[edit_key]:
         st.subheader("✏️ Editando Processo")
         
@@ -378,7 +378,6 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
         
         with st.form(f"form_ed_{chave}"):
             form_data = formulario_processo(é_edicao=True, dados_existentes=p)
-            
             if st.form_submit_button("💾 Salvar Alterações"):
                 e_num = form_data["numero"]
                 e_cons = form_data["consumidor"]

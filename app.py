@@ -25,7 +25,8 @@ except Exception as e:
     st.error("❌ Erro na conexao com o Google Sheets. Verifique os Secrets.")
     st.stop()
 
-# --- LEITURA E ESCRITA ---
+# --- CACHE OTIMIZADO COM TTL ---
+@st.cache_data(ttl=300)  # Cache por 5 minutos
 def ler_aba(nome_aba):
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)
@@ -47,6 +48,7 @@ def ler_aba(nome_aba):
 def salvar_dados(nome_aba, df_novo):
     try:
         conn.update(worksheet=nome_aba, data=df_novo)
+        # Limpar APENAS o cache da aba específica
         st.cache_data.clear()
     except Exception as e:
         st.error(f"❌ Erro ao salvar: {e}")
@@ -166,39 +168,40 @@ if not st.session_state.logado:
         st.title("⚖️ Sistema Seindec Arapiraca")
 
         tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
-    with tab_login:
-        with st.form("form_login"):
-            u_log = st.text_input("Usuário")
-            s_log = st.text_input("Senha", type="password")
-            if st.form_submit_button("Entrar"):
-                df_u = ler_aba("usuarios")
-                user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
-                if not user_valido.empty:
-                    criar_sessao(u_log)
-                    st.success("Login realizado!")
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos.")
+        
+        with tab_login:
+            with st.form("form_login"):
+                u_log = st.text_input("Usuário")
+                s_log = st.text_input("Senha", type="password")
+                if st.form_submit_button("Entrar"):
+                    df_u = ler_aba("usuarios")
+                    user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
+                    if not user_valido.empty:
+                        criar_sessao(u_log)
+                        st.success("Login realizado!")
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
 
-    with tab_cadastro:
-        with st.form("form_registro"):
-            st.info("Crie uma conta para acessar o sistema.")
-            u_reg = st.text_input("Novo Usuário (sem espaços)")
-            s_reg = st.text_input("Nova Senha", type="password")
-            s_conf = st.text_input("Confirme a Senha", type="password")
-            if st.form_submit_button("Cadastrar"):
-                df_u = ler_aba("usuarios")
-                if not u_reg or not s_reg:
-                    st.warning("Preencha todos os campos.")
-                elif u_reg in df_u["login"].values:
-                    st.error("Este usuário já existe.")
-                elif s_reg != s_conf:
-                    st.error("As senhas não coincidem.")
-                else:
-                    novo_id = int(df_u["id"].max() + 1) if not df_u.empty else 1
-                    novo_u = pd.DataFrame([{"id": novo_id, "login": u_reg, "senha": s_reg}])
-                    salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
-                    st.success("Usuário cadastrado com sucesso! Agora faça login.")
+        with tab_cadastro:
+            with st.form("form_registro"):
+                st.info("Crie uma conta para acessar o sistema.")
+                u_reg = st.text_input("Novo Usuário (sem espaços)")
+                s_reg = st.text_input("Nova Senha", type="password")
+                s_conf = st.text_input("Confirme a Senha", type="password")
+                if st.form_submit_button("Cadastrar"):
+                    df_u = ler_aba("usuarios")
+                    if not u_reg or not s_reg:
+                        st.warning("Preencha todos os campos.")
+                    elif u_reg in df_u["login"].values:
+                        st.error("Este usuário já existe.")
+                    elif s_reg != s_conf:
+                        st.error("As senhas não coincidem.")
+                    else:
+                        novo_id = int(df_u["id"].max() + 1) if not df_u.empty else 1
+                        novo_u = pd.DataFrame([{"id": novo_id, "login": u_reg, "senha": s_reg}])
+                        salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
+                        st.success("Usuário cadastrado com sucesso! Agora faça login.")
 
     st.stop()
 

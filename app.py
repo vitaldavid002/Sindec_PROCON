@@ -70,28 +70,22 @@ def filtro_codigo(serie, termo):
 # --- SESSAO ---
 def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
-    # Define expiração para a planilha
-    agora = datetime.now(FUSO_BR)
-    expiry_dt = agora + timedelta(hours=SESSION_HORAS)
-    expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+    expiry = (datetime.now(FUSO_BR) + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
     
     df_s = ler_aba("sessoes")
+    # Remove sessões antigas do mesmo usuário para evitar duplicidade
     df_s = df_s[df_s["usuario"] != usuario]
-    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry_str}])
+    
+    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
-    # Salva no navegador (Cookie) - SESSION_HORAS convertido para segundos
-    cookies.set("seindec_token", token, max_age=SESSION_HORAS * 3600)
+    # Salva o token na URL para persistência ao atualizar a página
+    st.query_params["token"] = token
     st.session_state.logado = True
     st.session_state.usuario = usuario
-    st.query_params["token"] = token
 
 def verificar_sessao():
-    # Busca o token no cookie ou na URL
-    token = cookies.get("seindec_token")
-    if not token:
-        token = st.query_params.get("token")
-    
+    token = st.query_params.get("token")
     if not token:
         return None
         
@@ -104,7 +98,6 @@ def verificar_sessao():
     try:
         expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
         if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
-            cookies.remove("seindec_token")
             return None
     except:
         return None
@@ -112,43 +105,71 @@ def verificar_sessao():
     return str(linha.iloc[0]["usuario"])
 
 def encerrar_sessao():
-    token = cookies.get("seindec_token") or st.query_params.get("token")
+    token = st.query_params.get("token")
     if token:
         df_s = ler_aba("sessoes")
         salvar_dados("sessoes", df_s[df_s["token"] != token])
     
-    cookies.remove("seindec_token")
     st.query_params.clear()
     st.session_state.logado = False
     st.session_state.usuario = None
-    st.session_state.nav_history = []
-    st.session_state.pagina_atual = "Consultar Processos"
     st.rerun()
+    
+# --- INITIALIZE SESSION STATE ---
+if "logado" not in st.session_state: st.session_state.logado = False
+if "usuario" not in st.session_state: st.session_state.usuario = None
+if "pagina_atual" not in st.session_state: st.session_state.pagina_atual = "Consultar Processos"
+if "nav_history" not in st.session_state: st.session_state.nav_history = []
+if "n_forn" not in st.session_state: st.session_state.n_forn = 1
 
-# --- LOGICA DE ACESSO (PROTEÇÃO) ---
+# --- FLUXO DE AUTENTICAÇÃO ---
 if not st.session_state.logado:
-    rec = verificar_sessao()
-    if rec:
+    # Tenta recuperar sessão via URL
+    usuario_recuperado = verificar_sessao()
+    if usuario_recuperado:
         st.session_state.logado = True
-        st.session_state.usuario = rec
+        st.session_state.usuario = usuario_recuperado
         st.rerun()
-    else:
-        # TELA DE LOGIN (Só aparece se não houver cookie válido)
-        st.header("⚖️ Acesso ao Sistema Seindec")
-        with st.form("login_form"):
-            user_input = st.text_input("Usuário")
-            pass_input = st.text_input("Senha", type="password")
+    
+    # Se não recuperou, mostra Tela de Login/Cadastro
+    st.title("⚖️ Sistema Seindec Arapiraca")
+    tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
+
+    with tab_login:
+        with st.form("form_login"):
+            u_log = st.text_input("Usuário")
+            s_log = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar"):
                 df_u = ler_aba("usuarios")
-                # Verifica se usuário e senha batem
-                valido = df_u[(df_u["login"] == user_input) & (df_u["senha"].astype(str) == pass_input)]
-                if not valido.empty:
-                    criar_sessao(user_input)
-                    st.success("Login realizado! Redirecionando...")
+                user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
+                if not user_valido.empty:
+                    criar_sessao(u_log)
+                    st.success("Login realizado!")
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
-        st.stop() # BLOQUEIA o resto do código se não estiver logado
+
+    with tab_cadastro:
+        with st.form("form_registro"):
+            st.info("Crie uma conta para acessar o sistema.")
+            u_reg = st.text_input("Novo Usuário (sem espaços)")
+            s_reg = st.text_input("Nova Senha", type="password")
+            s_conf = st.text_input("Confirme a Senha", type="password")
+            if st.form_submit_button("Cadastrar"):
+                df_u = ler_aba("usuarios")
+                if not u_reg or not s_reg:
+                    st.warning("Preencha todos os campos.")
+                elif u_reg in df_u["login"].values:
+                    st.error("Este usuário já existe.")
+                elif s_reg != s_conf:
+                    st.error("As senhas não coincidem.")
+                else:
+                    novo_id = int(df_u["id"].max() + 1) if not df_u.empty else 1
+                    novo_u = pd.DataFrame([{"id": novo_id, "login": u_reg, "senha": s_reg}])
+                    salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
+                    st.success("Usuário cadastrado com sucesso! Agora faça login.")
+    
+    st.stop() # IMPEDE que qualquer coisa abaixo (sidebar/dados) apareça sem login
 
 # =====================================================================
 # AREA LOGADA - NAVEGACAO

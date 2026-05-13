@@ -244,108 +244,91 @@ if st.sidebar.button("🚪 Sair"):
     st.rerun()
 
 # =====================================================================
-# HELPER: Renderizar formulário de processo (Cadastro ou Edição)
+# COMPONENTE: formulário reutilizável (FORA do st.form)
 # =====================================================================
-def formulario_processo(é_edicao=False, processo_existente=None):
+def formulario_processo(é_edicao=False, dados_existentes=None):
     """
-    Renderiza o formulário para cadastro ou edição de processos.
-    é_edicao: True para edição, False para novo cadastro
-    processo_existente: dados do processo sendo editado (None para novo)
+    Renderiza o formulário de cadastro/edição de processo.
+    
+    Args:
+        é_edicao: Se True, é para editar; se False, é para cadastrar
+        dados_existentes: Dict com dados do processo (para edição)
+    
+    Returns:
+        Dict com os dados do formulário quando submetido
     """
+    # Valores padrão
+    if dados_existentes is None:
+        dados_existentes = {}
     
-    # Inicializar valores padrão
-    num_default = ""
-    cons_default = ""
-    cpf_default = ""
-    nf_default = ""
-    rs_default = ""
-    cnpj_default = ""
-    tram_default = ""
-    obs_default = ""
-    n_forn_display = st.session_state.n_forn
+    num_default = dados_existentes.get("numero", "")
+    cons_default = dados_existentes.get("consumidor", "")
+    cpf_default = dados_existentes.get("cpf_consumidor", "")
+    nf_default = dados_existentes.get("nome_fantasia_fornecedor", "")
+    rs_default = dados_existentes.get("razao_social_fornecedor", "")
+    cnpj_default = dados_existentes.get("cnpj_fornecedor", "")
+    tram_default = dados_existentes.get("tramitacao", "")
+    obs_default = dados_existentes.get("anotacoes", "")
     
-    if é_edicao and processo_existente is not None:
-        num_default = str(processo_existente.get("numero", ""))
-        cons_default = str(processo_existente.get("consumidor", ""))
-        cpf_default = str(processo_existente.get("cpf_consumidor", ""))
-        nf_default = str(processo_existente.get("nome_fantasia_fornecedor", ""))
-        rs_default = str(processo_existente.get("razao_social_fornecedor", ""))
-        cnpj_default = str(processo_existente.get("cnpj_fornecedor", ""))
-        tram_default = str(processo_existente.get("tramitacao", ""))
-        obs_default = str(processo_existente.get("anotacoes", ""))
-        
-        # Calcular quantidade de fornecedores a partir dos dados
-        if nf_default:
-            n_forn_display = len([x for x in nf_default.split(";") if x.strip()])
-            st.session_state.n_forn = n_forn_display
+    # Parse dos fornecedores já existentes
+    lista_nf = [x.strip() for x in nf_default.split(";") if x.strip()]
+    lista_rs = [x.strip() for x in rs_default.split(";") if x.strip()]
+    lista_cnpj = [x.strip() for x in cnpj_default.split(";") if x.strip()]
     
+    # Atualizar n_forn baseado nos dados
+    if é_edicao and len(lista_nf) > 0:
+        st.session_state.n_forn = len(lista_nf)
+    
+    # Informações básicas do processo
     num = st.text_input("📌 Nº Processo", value=num_default)
     ca, cb = st.columns(2)
     with ca:
         cons = st.text_input("👤 Consumidor", value=cons_default)
     with cb:
         cpf = st.text_input("🪪 CPF do Consumidor", value=cpf_default, placeholder="000.000.000-00")
-
+    
     st.divider()
+    
+    # Seção de fornecedores
     st.subheader("🏢 Fornecedores")
     
-    # Controles de quantidade
-    col_aux1, col_aux2, col_aux3 = st.columns([1, 1, 10])
-    
-    if col_aux1.button("➕", help="Adicionar Fornecedor", key="btn_add_forn"):
-        if st.session_state.n_forn < 15:
-            st.session_state.n_forn += 1
-            st.rerun()
-
-    if col_aux2.button("➖", help="Remover Fornecedor", key="btn_rem_forn"):
-        if st.session_state.n_forn > 1:
-            st.session_state.n_forn -= 1
-            st.rerun()
-
+    # Controles de quantidade FORA do formulário (já estão fora na página)
+    col_aux3 = st.columns([10])[0]
     col_aux3.markdown(f"**Quantidade atual: {st.session_state.n_forn}** (Máximo 15)")
-
-    st.divider()
-
-    # Parse dos dados existentes para preencher campos
-    lista_nf = nf_default.split(";") if nf_default else []
-    lista_rs = rs_default.split(";") if rs_default else []
-    lista_cnpj = cnpj_default.split(";") if cnpj_default else []
     
-    # Garantir que as listas têm o tamanho correto
-    while len(lista_nf) < st.session_state.n_forn:
-        lista_nf.append("")
-    while len(lista_rs) < st.session_state.n_forn:
-        lista_rs.append("")
-    while len(lista_cnpj) < st.session_state.n_forn:
-        lista_cnpj.append("")
-
+    st.divider()
+    
     nf_inputs = []
     rs_inputs = []
     c_inputs = []
-
+    
     for i in range(st.session_state.n_forn):
         col_nf, col_rs, col_cnpj = st.columns([1.5, 1.5, 1])
-        nf_value = lista_nf[i].strip() if i < len(lista_nf) else ""
-        rs_value = lista_rs[i].strip() if i < len(lista_rs) else ""
-        cnpj_value = lista_cnpj[i].strip() if i < len(lista_cnpj) else ""
+        
+        # Valores padrão para edição
+        nf_value = lista_nf[i] if i < len(lista_nf) else ""
+        rs_value = lista_rs[i] if i < len(lista_rs) else ""
+        cnpj_value = lista_cnpj[i] if i < len(lista_cnpj) else ""
         
         nf_inputs.append(col_nf.text_input(f"Nome Fantasia {i+1}", value=nf_value, key=f"nf_{i}"))
         rs_inputs.append(col_rs.text_input(f"Razão Social {i+1}", value=rs_value, key=f"rs_{i}"))
         c_inputs.append(col_cnpj.text_input(f"CNPJ {i+1}", value=cnpj_value, key=f"c_{i}"))
-
+    
     st.divider()
+    
+    # Informações finais
     tram = st.text_input("📊 Situação Inicial", value=tram_default)
     obs = st.text_area("📝 Anotações", value=obs_default)
-
+    
     return {
-        "num": num,
-        "cons": cons,
-        "cpf": cpf,
-        "nf_inputs": nf_inputs,
-        "rs_inputs": rs_inputs,
-        "c_inputs": c_inputs,
-        "tram": tram,
-        "obs": obs
+        "numero": num,
+        "consumidor": cons,
+        "cpf_consumidor": cpf,
+        "nome_fantasia_fornecedor": nf_inputs,
+        "razao_social_fornecedor": rs_inputs,
+        "cnpj_fornecedor": c_inputs,
+        "tramitacao": tram,
+        "anotacoes": obs
     }
 
 # =====================================================================
@@ -374,45 +357,52 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     btn_label = "✏️ Editar Processo" if not st.session_state[edit_key] else "❌ Fechar Edição"
     if st.button(btn_label, key=f"toggle_{chave}"):
         st.session_state[edit_key] = not st.session_state[edit_key]
+        st.session_state.n_forn = 1  # Reset para edição
         st.rerun()
 
     if st.session_state[edit_key]:
         st.subheader("✏️ Editando Processo")
         
+        # Controles de quantidade para edição FORA do form
+        col_aux1, col_aux2 = st.columns([1, 1])
+        with col_aux1:
+            if st.button("➕ Adicionar Fornecedor", key=f"btn_add_forn_{chave}"):
+                if st.session_state.n_forn < 15:
+                    st.session_state.n_forn += 1
+                    st.rerun()
+        with col_aux2:
+            if st.button("➖ Remover Fornecedor", key=f"btn_rem_forn_{chave}"):
+                if st.session_state.n_forn > 1:
+                    st.session_state.n_forn -= 1
+                    st.rerun()
+        
         with st.form(f"form_ed_{chave}"):
-            form_data = formulario_processo(é_edicao=True, processo_existente=p)
+            form_data = formulario_processo(é_edicao=True, dados_existentes=p)
             
             if st.form_submit_button("💾 Salvar Alterações"):
-                e_num = form_data["num"]
-                e_cons = form_data["cons"]
-                e_cpf = form_data["cpf"]
-                e_nf = ";".join([nf for nf in form_data["nf_inputs"] if nf.strip()])
-                e_rs = ";".join([rs for rs in form_data["rs_inputs"] if rs.strip()])
-                e_cnpj = ";".join([c for c in form_data["c_inputs"] if c.strip()])
-                e_tram = form_data["tram"]
-                e_obs = form_data["obs"]
+                e_num = form_data["numero"]
+                e_cons = form_data["consumidor"]
+                e_cpf = form_data["cpf_consumidor"]
+                e_nf = ";".join([nf for nf in form_data["nome_fantasia_fornecedor"] if nf.strip()])
+                e_rs = ";".join([rs for rs in form_data["razao_social_fornecedor"] if rs.strip()])
+                e_cnpj = ";".join([c for c in form_data["cnpj_fornecedor"] if c.strip()])
+                e_tram = form_data["tramitacao"]
+                e_obs = form_data["anotacoes"]
                 
-                if not e_num or not e_cons:
-                    st.error("⚠️ Por favor, preencha ao menos o número do processo e o nome do consumidor.")
-                else:
-                    try:
-                        idx = df_p_master[df_p_master["id"] == p["id"]].index
-                        if not idx.empty:
-                            df_p_master.loc[idx, "numero"] = e_num
-                            df_p_master.loc[idx, "consumidor"] = e_cons
-                            df_p_master.loc[idx, "cpf_consumidor"] = e_cpf
-                            df_p_master.loc[idx, "nome_fantasia_fornecedor"] = e_nf
-                            df_p_master.loc[idx, "razao_social_fornecedor"] = e_rs
-                            df_p_master.loc[idx, "cnpj_fornecedor"] = e_cnpj
-                            df_p_master.loc[idx, "tramitacao"] = e_tram
-                            df_p_master.loc[idx, "anotacoes"] = e_obs
-                            
-                            salvar_dados("processos", df_p_master)
-                            st.session_state[edit_key] = False
-                            st.success("✅ Processo atualizado!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao atualizar: {str(e)}")
+                idx = df_p_master[df_p_master["id"] == p["id"]].index[0]
+                df_p_master.at[idx, "numero"] = e_num
+                df_p_master.at[idx, "consumidor"] = e_cons
+                df_p_master.at[idx, "cpf_consumidor"] = e_cpf
+                df_p_master.at[idx, "nome_fantasia_fornecedor"] = e_nf
+                df_p_master.at[idx, "razao_social_fornecedor"] = e_rs
+                df_p_master.at[idx, "cnpj_fornecedor"] = e_cnpj
+                df_p_master.at[idx, "tramitacao"] = e_tram
+                df_p_master.at[idx, "anotacoes"] = e_obs
+                
+                salvar_dados("processos", df_p_master)
+                st.session_state[edit_key] = False
+                st.success("✅ Processo atualizado!")
+                st.rerun()
 
     st.subheader("📜 Andamento")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
@@ -435,7 +425,6 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
             salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
             st.success("✅ Tramitação atualizada!")
             st.rerun()
-
 # =====================================================================
 # PAGINAS
 # =====================================================================
@@ -443,35 +432,50 @@ menu = st.session_state.pagina_atual
 
 if menu == "Cadastrar Processo":
     st.header("📄 Novo Cadastro de Processo")
-
-    with st.form("novo_processo", clear_on_submit=True):
+    
+    # Controles de quantidade FORA do form
+    col_aux1, col_aux2 = st.columns([1, 1])
+    with col_aux1:
+        if st.button("➕ Adicionar Fornecedor", key="btn_add_forn_new"):
+            if st.session_state.n_forn < 15:
+                st.session_state.n_forn += 1
+                st.rerun()
+    with col_aux2:
+        if st.button("➖ Remover Fornecedor", key="btn_rem_forn_new"):
+            if st.session_state.n_forn > 1:
+                st.session_state.n_forn -= 1
+                st.rerun()
+    
+    with st.form("novo_processo"):
         form_data = formulario_processo(é_edicao=False)
         
         if st.form_submit_button("💾 Salvar Novo Processo"):
-            num = form_data["num"]
-            cons = form_data["cons"]
-            cpf = form_data["cpf"]
-            nf_final = ";".join([nf for nf in form_data["nf_inputs"] if nf.strip()])
-            rs_final = ";".join([rs for rs in form_data["rs_inputs"] if rs.strip()])
-            cnpj_final = ";".join([c for c in form_data["c_inputs"] if c.strip()])
-            tram = form_data["tram"]
-            obs = form_data["obs"]
-            
-            if not num or not cons:
+            if not form_data["numero"] or not form_data["consumidor"]:
                 st.error("⚠️ Por favor, preencha ao menos o número do processo e o nome do consumidor.")
             else:
+                nf_final = ";".join([nf for nf in form_data["nome_fantasia_fornecedor"] if nf.strip()])
+                rs_final = ";".join([rs for rs in form_data["razao_social_fornecedor"] if rs.strip()])
+                cnpj_final = ";".join([c for c in form_data["cnpj_fornecedor"] if c.strip()])
+
                 df_p = ler_aba("processos")
                 df_h = ler_aba("historico")
                 p_id = int(df_p["id"].max()+1) if not df_p.empty else 1
 
                 novo_p = pd.DataFrame([{
-                    "id": p_id, "numero": num, "consumidor": cons, "cpf_consumidor": cpf,
-                    "nome_fantasia_fornecedor": nf_final, "razao_social_fornecedor": rs_final, 
+                    "id": p_id, 
+                    "numero": form_data["numero"], 
+                    "consumidor": form_data["consumidor"], 
+                    "cpf_consumidor": form_data["cpf_consumidor"],
+                    "nome_fantasia_fornecedor": nf_final, 
+                    "razao_social_fornecedor": rs_final, 
                     "cnpj_fornecedor": cnpj_final,
-                    "tramitacao": tram, "anotacoes": obs
+                    "tramitacao": form_data["tramitacao"], 
+                    "anotacoes": form_data["anotacoes"]
                 }])
                 novo_h = pd.DataFrame([{
-                    "id": len(df_h)+1, "processo_id": p_id, "tramitacao_texto": tram,
+                    "id": len(df_h)+1, 
+                    "processo_id": p_id, 
+                    "tramitacao_texto": form_data["tramitacao"],
                     "usuario_responsavel": st.session_state.usuario,
                     "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M")
                 }])

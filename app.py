@@ -100,11 +100,11 @@ def encerrar_sessao():
     st.session_state.logado = False
     st.session_state.usuario = None
     st.session_state.nav_history = []
-    st.session_state.pagina_atual = "Listar Processos"
+    st.session_state.pagina_atual = "Consultar Processos"
 
 # --- SESSION STATE ---
 for chave, padrao in [("logado", False), ("usuario", None),
-                      ("nav_history", []), ("pagina_atual", "Listar Processos")]:
+                      ("nav_history", []), ("pagina_atual", "Consultar Processos")]:
     if chave not in st.session_state:
         st.session_state[chave] = padrao
 
@@ -160,7 +160,7 @@ def voltar_pagina():
     if st.session_state.nav_history:
         st.session_state.pagina_atual = st.session_state.nav_history.pop()
     else:
-        st.session_state.pagina_atual = "Listar Processos"
+        st.session_state.pagina_atual = "Consultar Processos"
 
 # SIDEBAR
 st.sidebar.title(f"👤 Olá, {st.session_state.usuario}")
@@ -173,7 +173,7 @@ if st.session_state.nav_history:
 
 st.sidebar.subheader("📌 Navegação")
 for label, pagina in [
-    ("🔍 Listar Processos", "Listar Processos"),
+    ("🔍 Consultar Processos", "Consultar Processos"),
     ("🔎 Pesquisa Avançada", "Pesquisa Avancada"),
     ("📄 Cadastrar Processo", "Cadastrar Processo"),
 ]:
@@ -327,15 +327,14 @@ if menu == "Cadastrar Processo":
             salvar_dados("historico", pd.concat([df_h, novo_h], ignore_index=True))
             st.success("✅ Processo salvo com sucesso!")
 
-# --- LISTAR PROCESSOS ---
-elif menu == "Listar Processos":
+# --- CONSULTAR PROCESSOS ---
+elif menu == "Consultar Processos":
     st.header("🔍 Consulta de Processos")
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
 
     busca = st.text_input("🔎 Digite o nome do consumidor ou número do processo para buscar...")
     
-    # Lógica alterada aqui: Só processa se houver texto na busca
     if busca.strip():
         df_ex = df_p_master.copy()
         d = so_digitos(busca)
@@ -356,7 +355,6 @@ elif menu == "Listar Processos":
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                     exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
     else:
-        # Mensagem exibida quando a página carrega e a busca está vazia
         st.info("💡 Digite algo acima para pesquisar os processos cadastrados.")
 
 # --- PESQUISA AVANCADA ---

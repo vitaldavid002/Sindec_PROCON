@@ -15,6 +15,63 @@ st.set_page_config(page_title="Seindec Arapiraca", page_icon="⚖️", layout="w
 # Inicialize o CookieManager SEM o @st.cache_resource
 cookie_manager = stx.CookieManager()
 
+# --- 1. INICIALIZAÇÃO ABSOLUTA (Sempre no topo) ---
+# Isso garante que as variáveis existam, mesmo que o script pare no login.
+chaves_obrigatorias = {
+    "logado": False,
+    "usuario": None,
+    "nav_history": [],
+    "pagina_atual": "Consultar Processos",
+    "n_forn": 1
+}
+
+for chave, valor_padrao in chaves_obrigatorias.items():
+    if chave not in st.session_state:
+        st.session_state[chave] = valor_padrao
+
+# --- 2. FLUXO DE AUTENTICAÇÃO ---
+if not st.session_state.logado:
+    usuario_recuperado = verificar_sessao()
+    
+    if usuario_recuperado:
+        st.session_state.logado = True
+        st.session_state.usuario = usuario_recuperado
+        st.rerun()
+    else:
+        st.title("⚖️ Sistema Seindec Arapiraca")
+        tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
+
+        with tab_login:
+            with st.form("form_login"):
+                u_log = st.text_input("Usuário")
+                s_log = st.text_input("Senha", type="password")
+                if st.form_submit_button("Entrar"):
+                    df_u = ler_aba("usuarios")
+                    user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
+                    if not user_valido.empty:
+                        criar_sessao(u_log)
+                        st.success("Login realizado!")
+                        import time
+                        time.sleep(0.5) # Tempo para o cookie gravar
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
+
+        with tab_cadastro:
+            with st.form("form_reg"):
+                u_reg = st.text_input("Novo Usuário")
+                s_reg = st.text_input("Senha", type="password")
+                if st.form_submit_button("Cadastrar"):
+                    df_u = ler_aba("usuarios")
+                    if u_reg in df_u["login"].values:
+                        st.error("Usuário já existe!")
+                    else:
+                        novo_u = pd.DataFrame([{"id": len(df_u)+1, "login": u_reg, "senha": s_reg}])
+                        salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
+                        st.success("Cadastrado! Use a aba de Login.")
+        
+        st.stop() # Bloqueia o resto do código para deslogados
+
 # Tempo de sessão
 SESSION_HORAS = 5
 

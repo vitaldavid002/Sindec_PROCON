@@ -70,47 +70,45 @@ def filtro_codigo(serie, termo):
 # --- SESSAO ---
 def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
-    expiry = (datetime.now(FUSO_BR) + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
+    # Define expiração para a planilha
+    agora = datetime.now(FUSO_BR)
+    expiry_dt = agora + timedelta(hours=SESSION_HORAS)
+    expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+    
     df_s = ler_aba("sessoes")
     df_s = df_s[df_s["usuario"] != usuario]
-    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
+    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry_str}])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
-    # Salva o token no Cookie do navegador (expira junto com a sessão)
+    # Salva no navegador (Cookie) - SESSION_HORAS convertido para segundos
     cookies.set("seindec_token", token, max_age=SESSION_HORAS * 3600)
-    # Mantém na URL como garantia
-    st.query_params["token"] = token
-    
     st.session_state.logado = True
     st.session_state.usuario = usuario
+    st.query_params["token"] = token
 
 def verificar_sessao():
-    # Tenta pegar o token do Cookie primeiro. Se não tiver, tenta da URL.
-    token = cookies.get("seindec_token") or st.query_params.get("token")
+    # Busca o token no cookie ou na URL
+    token = cookies.get("seindec_token")
+    if not token:
+        token = st.query_params.get("token")
     
     if not token:
         return None
         
     df_s = ler_aba("sessoes")
-    if df_s.empty:
-        return None
+    if df_s.empty: return None
         
     linha = df_s[df_s["token"] == token]
-    if linha.empty:
-        return None
+    if linha.empty: return None
         
     try:
         expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
-    except Exception:
+        if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
+            cookies.remove("seindec_token")
+            return None
+    except:
         return None
         
-    if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
-        # Se expirou, limpa o cookie
-        cookies.remove("seindec_token")
-        return None
-        
-    # Garante que o token fique na URL durante a navegação
-    st.query_params["token"] = token
     return str(linha.iloc[0]["usuario"])
 
 def encerrar_sessao():
@@ -118,28 +116,39 @@ def encerrar_sessao():
     if token:
         df_s = ler_aba("sessoes")
         salvar_dados("sessoes", df_s[df_s["token"] != token])
-        
-    # Limpa as memórias (Cookie e URL)
+    
     cookies.remove("seindec_token")
     st.query_params.clear()
-    
     st.session_state.logado = False
     st.session_state.usuario = None
     st.session_state.nav_history = []
     st.session_state.pagina_atual = "Consultar Processos"
+    st.rerun()
 
-# --- SESSION STATE ---
-for chave, padrao in [("logado", False), ("usuario", None),
-                      ("nav_history", []), ("pagina_atual", "Consultar Processos"),
-                      ("n_forn", 1)]:
-    if chave not in st.session_state:
-        st.session_state[chave] = padrao
-
+# --- LOGICA DE ACESSO (PROTEÇÃO) ---
 if not st.session_state.logado:
     rec = verificar_sessao()
     if rec:
         st.session_state.logado = True
         st.session_state.usuario = rec
+        st.rerun()
+    else:
+        # TELA DE LOGIN (Só aparece se não houver cookie válido)
+        st.header("⚖️ Acesso ao Sistema Seindec")
+        with st.form("login_form"):
+            user_input = st.text_input("Usuário")
+            pass_input = st.text_input("Senha", type="password")
+            if st.form_submit_button("Entrar"):
+                df_u = ler_aba("usuarios")
+                # Verifica se usuário e senha batem
+                valido = df_u[(df_u["login"] == user_input) & (df_u["senha"].astype(str) == pass_input)]
+                if not valido.empty:
+                    criar_sessao(user_input)
+                    st.success("Login realizado! Redirecionando...")
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+        st.stop() # BLOQUEIA o resto do código se não estiver logado
 
 # =====================================================================
 # AREA LOGADA - NAVEGACAO

@@ -233,9 +233,6 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 cancelar = st.form_submit_button("❌ Cancelar")
 
             if salvar:
-                # --- CORREÇÃO DO ERRO ---
-                # Força o Pandas a tratar estas colunas como Texto (object) antes de atualizar
-                # Isso evita o TypeError de tentar colocar uma string em coluna float
                 cols_to_object = ["numero", "consumidor", "cpf_consumidor", "fornecedor", "cnpj_fornecedor", "tramitacao", "anotacoes"]
                 for c in cols_to_object:
                     if c in df_p_master.columns:
@@ -272,8 +269,6 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     nova_t = st.text_input("🔄 Adicionar Nova Tramitação", key=f"in_{chave}")
     if st.button("✅ Confirmar Atualização", key=f"btn_{chave}"):
         if nova_t:
-            # --- CORREÇÃO DO ERRO ---
-            # Previne falhas se a coluna tramitação foi inferida como vazia/float
             if "tramitacao" in df_p_master.columns:
                 df_p_master["tramitacao"] = df_p_master["tramitacao"].astype(object)
                 
@@ -334,15 +329,18 @@ if menu == "Cadastrar Processo":
 
 # --- LISTAR PROCESSOS ---
 elif menu == "Listar Processos":
-    st.header("🔍 Consulta Rápida de Processos")
+    st.header("🔍 Consulta de Processos")
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
 
-    busca = st.text_input("🔎 Buscar por nome ou número do processo...")
-    df_ex = df_p_master.copy()
-    if busca:
+    busca = st.text_input("🔎 Digite o nome do consumidor ou número do processo para buscar...")
+    
+    # Lógica alterada aqui: Só processa se houver texto na busca
+    if busca.strip():
+        df_ex = df_p_master.copy()
         d = so_digitos(busca)
         f_nome = df_ex["consumidor"].astype(str).str.contains(busca.strip(), case=False, na=False)
+        
         if d:
             f_num = df_ex["numero"].astype(str).apply(so_digitos).str.contains(d, na=False)
             df_ex = df_ex[f_nome | f_num]
@@ -350,12 +348,16 @@ elif menu == "Listar Processos":
             f_num_txt = df_ex["numero"].astype(str).str.contains(busca.strip(), case=False, na=False)
             df_ex = df_ex[f_nome | f_num_txt]
 
-    if df_ex.empty:
-        st.warning("⚠️ Nenhum processo encontrado.")
+        if df_ex.empty:
+            st.warning("⚠️ Nenhum processo encontrado para esta busca.")
+        else:
+            st.info(f"📋 Exibindo {len(df_ex)} resultado(s).")
+            for _, p in df_ex.iterrows():
+                with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
+                    exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
     else:
-        for _, p in df_ex.iterrows():
-            with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
-                exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
+        # Mensagem exibida quando a página carrega e a busca está vazia
+        st.info("💡 Digite algo acima para pesquisar os processos cadastrados.")
 
 # --- PESQUISA AVANCADA ---
 elif menu == "Pesquisa Avancada":
@@ -385,15 +387,13 @@ elif menu == "Pesquisa Avancada":
     if pesquisar:
         df_res = df_p_master.copy()
 
-        # Filtros por codigo/numero: ignoram pontuacao
         if f_numero:
             df_res = df_res[filtro_codigo(df_res["numero"], f_numero)]
         if f_cpf:
-            df_res = df_res[filtro_codigo(df_res.get("cpf_consumidor", df_res.get("cpf_consumidor", pd.Series([""] * len(df_res), index=df_res.index))), f_cpf)]
+            df_res = df_res[filtro_codigo(df_res.get("cpf_consumidor", pd.Series([""] * len(df_res), index=df_res.index)), f_cpf)]
         if f_cnpj:
             df_res = df_res[filtro_codigo(df_res.get("cnpj_fornecedor", pd.Series([""] * len(df_res), index=df_res.index)), f_cnpj)]
 
-        # Filtros por texto: busca normal
         if f_consumidor:
             df_res = df_res[filtro_texto(df_res["consumidor"], f_consumidor)]
         if f_fornecedor:

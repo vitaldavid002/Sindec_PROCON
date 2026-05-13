@@ -6,7 +6,7 @@ import secrets
 import re
 
 # --- CONFIGURACAO DA PAGINA ---
-st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", layout="wide")
+st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", page_icon="⚖️", layout="wide")
 
 SESSION_HORAS = 5
 
@@ -14,7 +14,7 @@ SESSION_HORAS = 5
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("Erro na conexao com o Google Sheets. Verifique os Secrets.")
+    st.error("❌ Erro na conexao com o Google Sheets. Verifique os Secrets.")
     st.stop()
 
 # --- LEITURA E ESCRITA ---
@@ -41,7 +41,7 @@ def salvar_dados(nome_aba, df_novo):
         conn.update(worksheet=nome_aba, data=df_novo)
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        st.error(f"❌ Erro ao salvar: {e}")
 
 # --- HELPERS DE PESQUISA ---
 def so_digitos(texto):
@@ -120,30 +120,32 @@ if not st.session_state.logado:
 if not st.session_state.logado:
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        st.title("Sistema Seindec - PROCON Arapiraca")
-        aba_l, aba_c = st.tabs(["Acessar", "Criar Conta"])
+        st.title("⚖️ Sistema Seindec")
+        st.subheader("PROCON Arapiraca")
+        
+        aba_l, aba_c = st.tabs(["🔐 Acessar", "📝 Criar Conta"])
         with aba_l:
-            u = st.text_input("Usuario", key="login_user")
-            s = st.text_input("Senha", type="password", key="login_pass")
-            if st.button("Entrar"):
+            u = st.text_input("👤 Usuário", key="login_user")
+            s = st.text_input("🔑 Senha", type="password", key="login_pass")
+            if st.button("✅ Entrar"):
                 df_u = ler_aba("usuarios")
                 ok = df_u[(df_u["login"] == u) & (df_u["senha"].astype(str) == str(s))]
                 if not ok.empty:
                     criar_sessao(u)
                     st.rerun()
                 else:
-                    st.error("Login ou senha invalidos.")
+                    st.error("⚠️ Login ou senha inválidos.")
         with aba_c:
-            nu = st.text_input("Novo Usuario", key="reg_user")
-            ns = st.text_input("Nova Senha", type="password", key="reg_pass")
-            if st.button("Registrar"):
+            nu = st.text_input("👤 Novo Usuário", key="reg_user")
+            ns = st.text_input("🔑 Nova Senha", type="password", key="reg_pass")
+            if st.button("💾 Registrar"):
                 df_u = ler_aba("usuarios")
                 if nu in df_u["login"].values:
-                    st.error("Usuario ja existe.")
+                    st.error("⚠️ Usuário já existe.")
                 else:
                     novo_u = pd.DataFrame([{"id": len(df_u)+1, "login": nu, "senha": ns}])
                     salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
-                    st.success("Conta criada! Faca o login.")
+                    st.success("🎉 Conta criada! Faça o login.")
     st.stop()
 
 # =====================================================================
@@ -161,28 +163,29 @@ def voltar_pagina():
         st.session_state.pagina_atual = "Listar Processos"
 
 # SIDEBAR
-st.sidebar.title(f"Logado: {st.session_state.usuario}")
+st.sidebar.title(f"👤 Olá, {st.session_state.usuario}")
 st.sidebar.markdown("---")
 
 if st.session_state.nav_history:
-    if st.sidebar.button("Voltar"):
+    if st.sidebar.button("⬅️ Voltar"):
         voltar_pagina()
         st.rerun()
 
+st.sidebar.subheader("📌 Navegação")
 for label, pagina in [
-    ("Listar Processos", "Listar Processos"),
-    ("Pesquisa Avancada", "Pesquisa Avancada"),
-    ("Cadastrar Processo", "Cadastrar Processo"),
+    ("🔍 Listar Processos", "Listar Processos"),
+    ("🔎 Pesquisa Avançada", "Pesquisa Avancada"),
+    ("📄 Cadastrar Processo", "Cadastrar Processo"),
 ]:
     if st.sidebar.button(label):
         navegar_para(pagina)
         st.rerun()
 
 st.sidebar.markdown("---")
-if st.sidebar.button("Sair"):
+if st.sidebar.button("🚪 Sair"):
     encerrar_sessao()
     st.rerun()
-st.sidebar.caption(f"Sessao ativa por ate {SESSION_HORAS}h.")
+st.sidebar.caption(f"⏳ Sessão ativa por até {SESSION_HORAS}h.")
 
 # =====================================================================
 # COMPONENTE: card de processo
@@ -190,11 +193,11 @@ st.sidebar.caption(f"Sessao ativa por ate {SESSION_HORAS}h.")
 def exibir_processo(p, df_p_master, df_h_master, chave):
     c1, c2 = st.columns(2)
     with c1:
-        st.write(f"**Consumidor:** {p.get('consumidor','')}  |  **CPF:** `{p.get('cpf_consumidor','')}`")
-        st.write(f"**Status Atual:** {p.get('tramitacao','')}")
+        st.write(f"**👤 Consumidor:** {p.get('consumidor','')}  |  **🪪 CPF:** `{p.get('cpf_consumidor','')}`")
+        st.write(f"**📊 Status Atual:** {p.get('tramitacao','')}")
     with c2:
-        st.write(f"**Fornecedor:** {p.get('fornecedor','')}  |  **CNPJ:** `{p.get('cnpj_fornecedor','')}`")
-        st.write(f"**Anotacoes:** {p.get('anotacoes','')}")
+        st.write(f"**🏢 Fornecedor:** {p.get('fornecedor','')}  |  **📄 CNPJ:** `{p.get('cnpj_fornecedor','')}`")
+        st.write(f"**📝 Anotações:** {p.get('anotacoes','')}")
 
     st.divider()
 
@@ -202,32 +205,32 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     if edit_key not in st.session_state:
         st.session_state[edit_key] = False
 
-    btn_label = "Editar Processo" if not st.session_state[edit_key] else "Fechar Edicao"
+    btn_label = "✏️ Editar Processo" if not st.session_state[edit_key] else "❌ Fechar Edição"
     if st.button(btn_label, key=f"toggle_{chave}"):
         st.session_state[edit_key] = not st.session_state[edit_key]
         st.rerun()
 
     if st.session_state[edit_key]:
-        st.subheader("Editar dados do processo")
+        st.info("⚠️ Alterando dados mestre do processo.")
         with st.form(f"form_ed_{chave}"):
-            e_num = st.text_input("N Processo", value=str(p.get("numero","")))
+            e_num = st.text_input("Nº Processo", value=str(p.get("numero","")))
             ca, cb = st.columns(2)
             with ca:
-                e_cons = st.text_input("Consumidor", value=str(p.get("consumidor","")))
+                e_cons = st.text_input("👤 Consumidor", value=str(p.get("consumidor","")))
             with cb:
-                e_cpf  = st.text_input("CPF do Consumidor", value=str(p.get("cpf_consumidor","")), placeholder="000.000.000-00")
+                e_cpf  = st.text_input("🪪 CPF do Consumidor", value=str(p.get("cpf_consumidor","")), placeholder="000.000.000-00")
             cc, cd = st.columns(2)
             with cc:
-                e_forn = st.text_input("Fornecedor", value=str(p.get("fornecedor","")))
+                e_forn = st.text_input("🏢 Fornecedor", value=str(p.get("fornecedor","")))
             with cd:
-                e_cnpj = st.text_input("CNPJ do Fornecedor", value=str(p.get("cnpj_fornecedor","")), placeholder="00.000.000/0000-00")
-            e_tram = st.text_input("Tramitacao Atual", value=str(p.get("tramitacao","")))
-            e_obs  = st.text_area("Anotacoes", value=str(p.get("anotacoes","")))
+                e_cnpj = st.text_input("📄 CNPJ do Fornecedor", value=str(p.get("cnpj_fornecedor","")), placeholder="00.000.000/0000-00")
+            e_tram = st.text_input("📊 Tramitação Atual", value=str(p.get("tramitacao","")))
+            e_obs  = st.text_area("📝 Anotações", value=str(p.get("anotacoes","")))
             cs, cc2 = st.columns(2)
             with cs:
-                salvar = st.form_submit_button("Salvar Alteracoes")
+                salvar = st.form_submit_button("💾 Salvar Alterações")
             with cc2:
-                cancelar = st.form_submit_button("Cancelar")
+                cancelar = st.form_submit_button("❌ Cancelar")
 
             if salvar:
                 idx = df_p_master[df_p_master["id"] == p["id"]].index
@@ -240,14 +243,14 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 df_p_master.loc[idx, "anotacoes"]       = e_obs
                 salvar_dados("processos", df_p_master)
                 st.session_state[edit_key] = False
-                st.success("Processo atualizado!")
+                st.success("✅ Processo atualizado!")
                 st.rerun()
             if cancelar:
                 st.session_state[edit_key] = False
                 st.rerun()
         st.divider()
 
-    st.subheader("Historico de Tramitacoes")
+    st.subheader("📜 Histórico de Tramitações")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
     if not hist_p.empty:
         st.dataframe(
@@ -255,11 +258,11 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
             use_container_width=True, hide_index=True
         )
     else:
-        st.info("Nenhum historico encontrado.")
+        st.info("ℹ️ Nenhum histórico encontrado para este processo.")
 
     st.divider()
-    nova_t = st.text_input("Nova Tramitacao", key=f"in_{chave}")
-    if st.button("Confirmar Atualizacao", key=f"btn_{chave}"):
+    nova_t = st.text_input("🔄 Adicionar Nova Tramitação", key=f"in_{chave}")
+    if st.button("✅ Confirmar Atualização", key=f"btn_{chave}"):
         if nova_t:
             df_p_master.loc[df_p_master["id"] == p["id"], "tramitacao"] = nova_t
             n_h = pd.DataFrame([{
@@ -270,7 +273,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
             }])
             salvar_dados("processos", df_p_master)
             salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
-            st.success("Tramitacao atualizada!")
+            st.success("✅ Tramitação atualizada com sucesso!")
             st.rerun()
 
 # =====================================================================
@@ -280,23 +283,23 @@ menu = st.session_state.pagina_atual
 
 # --- CADASTRAR PROCESSO ---
 if menu == "Cadastrar Processo":
-    st.header("Novo Cadastro")
+    st.header("📄 Novo Cadastro de Processo")
     with st.form("novo_processo"):
-        num = st.text_input("N Processo")
+        num = st.text_input("📌 Nº Processo")
         ca, cb = st.columns(2)
         with ca:
-            cons = st.text_input("Consumidor")
+            cons = st.text_input("👤 Consumidor")
         with cb:
-            cpf  = st.text_input("CPF do Consumidor", placeholder="000.000.000-00")
+            cpf  = st.text_input("🪪 CPF do Consumidor", placeholder="000.000.000-00")
         cc, cd = st.columns(2)
         with cc:
-            forn = st.text_input("Fornecedor")
+            forn = st.text_input("🏢 Fornecedor")
         with cd:
-            cnpj = st.text_input("CNPJ do Fornecedor", placeholder="00.000.000/0000-00")
-        tram = st.text_input("Tramitacao Atual")
-        obs  = st.text_area("Anotacoes")
+            cnpj = st.text_input("📄 CNPJ do Fornecedor", placeholder="00.000.000/0000-00")
+        tram = st.text_input("📊 Tramitação Atual")
+        obs  = st.text_area("📝 Anotações")
 
-        if st.form_submit_button("Salvar"):
+        if st.form_submit_button("💾 Salvar Novo Processo"):
             df_p = ler_aba("processos")
             df_h = ler_aba("historico")
             p_id = int(df_p["id"].max()+1) if not df_p.empty else 1
@@ -314,15 +317,15 @@ if menu == "Cadastrar Processo":
             }])
             salvar_dados("processos", pd.concat([df_p, novo_p], ignore_index=True))
             salvar_dados("historico", pd.concat([df_h, novo_h], ignore_index=True))
-            st.success("Processo salvo com sucesso!")
+            st.success("✅ Processo salvo com sucesso!")
 
 # --- LISTAR PROCESSOS ---
 elif menu == "Listar Processos":
-    st.header("Consulta de Processos")
+    st.header("🔍 Consulta Rápida de Processos")
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
 
-    busca = st.text_input("Buscar por nome ou numero")
+    busca = st.text_input("🔎 Buscar por nome ou número do processo...")
     df_ex = df_p_master.copy()
     if busca:
         d = so_digitos(busca)
@@ -335,36 +338,36 @@ elif menu == "Listar Processos":
             df_ex = df_ex[f_nome | f_num_txt]
 
     if df_ex.empty:
-        st.info("Nenhum processo encontrado.")
+        st.warning("⚠️ Nenhum processo encontrado.")
     else:
         for _, p in df_ex.iterrows():
-            with st.expander(f"{p['numero']} - {p['consumidor']}"):
+            with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                 exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
 
 # --- PESQUISA AVANCADA ---
 elif menu == "Pesquisa Avancada":
-    st.header("Pesquisa Avancada")
-    st.caption("Preencha um ou mais campos. Todos os filtros preenchidos serao aplicados juntos (E logico).")
+    st.header("🔎 Pesquisa Avançada")
+    st.caption("💡 Preencha um ou mais campos. Todos os filtros preenchidos serão aplicados juntos.")
 
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
 
     with st.form("pesquisa_avancada"):
-        st.subheader("Filtros")
+        st.subheader("⚙️ Filtros de Busca")
         col1, col2 = st.columns(2)
         with col1:
-            f_numero     = st.text_input("Numero do Processo",
-                                         placeholder="Pontuacao ignorada — ex: 0001/2024")
-            f_consumidor = st.text_input("Nome do Consumidor")
-            f_cpf        = st.text_input("CPF do Consumidor",
-                                         placeholder="Pontuacao ignorada — ex: 123.456.789-00")
+            f_numero     = st.text_input("📌 Número do Processo",
+                                         placeholder="Ex: 0001/2024 (Pontuação ignorada)")
+            f_consumidor = st.text_input("👤 Nome do Consumidor")
+            f_cpf        = st.text_input("🪪 CPF do Consumidor",
+                                         placeholder="Ex: 123.456.789-00 (Pontuação ignorada)")
         with col2:
-            f_fornecedor = st.text_input("Nome do Fornecedor")
-            f_cnpj       = st.text_input("CNPJ do Fornecedor",
-                                         placeholder="Pontuacao ignorada — ex: 00.000.000/0000-00")
-            f_tramitacao = st.text_input("Tramitacao Atual")
+            f_fornecedor = st.text_input("🏢 Nome do Fornecedor")
+            f_cnpj       = st.text_input("📄 CNPJ do Fornecedor",
+                                         placeholder="Ex: 00.000.000/0000-00 (Pontuação ignorada)")
+            f_tramitacao = st.text_input("📊 Tramitação Atual")
 
-        pesquisar = st.form_submit_button("Pesquisar")
+        pesquisar = st.form_submit_button("🚀 Pesquisar")
 
     if pesquisar:
         df_res = df_p_master.copy()
@@ -386,14 +389,15 @@ elif menu == "Pesquisa Avancada":
             df_res = df_res[filtro_texto(df_res["tramitacao"], f_tramitacao)]
 
         total = len(df_res)
-        st.markdown(f"**{total} processo(s) encontrado(s)**")
+        if total > 0:
+            st.success(f"🎯 **{total} processo(s) encontrado(s)**")
         st.divider()
 
         if df_res.empty:
-            st.info("Nenhum processo encontrado com os filtros informados.")
+            st.warning("⚠️ Nenhum processo encontrado com os filtros informados.")
         else:
             for _, p in df_res.iterrows():
-                with st.expander(f"{p['numero']} - {p['consumidor']}"):
+                with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                     exibir_processo(p, df_p_master, df_h_master, chave=f"adv_{p['id']}")
 
 # --- RODAPE ---
@@ -406,6 +410,6 @@ st.markdown("""
     }
     </style>
     <div class="footer">
-        Seindec AL - Sistema Extinto de Informacoes de Defesa do Consumidor de Alagoas - Unidade Arapiraca
+        Seindec AL - Sistema Extinto de Informações de Defesa do Consumidor de Alagoas - Unidade Arapiraca
     </div>
 """, unsafe_allow_html=True)

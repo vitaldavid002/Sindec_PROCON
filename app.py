@@ -260,7 +260,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 st.rerun()
         st.divider()
 
-    st.subheader("📜 Histórico de Tramitações")
+    st.subheader("📜 Andamento")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
     if not hist_p.empty:
         st.dataframe(

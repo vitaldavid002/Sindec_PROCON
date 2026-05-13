@@ -329,7 +329,7 @@ if menu == "Cadastrar Processo":
 
 # --- CONSULTAR PROCESSOS ---
 elif menu == "Consultar Processos":
-    st.header("🔍 Consulta de Processos")
+    st.header("🔍 Consultar Processos")
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
 

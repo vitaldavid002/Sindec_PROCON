@@ -69,6 +69,18 @@ def filtro_codigo(serie, termo):
     return serie.astype(str).apply(so_digitos).str.contains(d, na=False)
 
 # --- SESSAO ---
+chaves_obrigatorias = {
+    "logado": False,
+    "usuario": None,
+    "nav_history": [],
+    "pagina_atual": "Consultar Processos",
+    "n_forn": 1
+}
+
+for chave, valor_padrao in chaves_obrigatorias.items():
+    if chave not in st.session_state:
+        st.session_state[chave] = valor_padrao
+        
 def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
     expiry = (datetime.now(FUSO_BR) + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")

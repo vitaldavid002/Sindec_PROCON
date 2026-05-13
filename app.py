@@ -1,10 +1,18 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+import extra_streamlit_components as stx
+import json
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", layout="wide")
+
+# --- GERENCIADOR DE COOKIES (inicializado antes de qualquer elemento) ---
+cookie_manager = stx.CookieManager(key="seindec_cookies")
+
+COOKIE_NAME = "seindec_session"
+SESSION_HORAS = 5
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
 try:
@@ -13,6 +21,7 @@ except Exception as e:
     st.error("Erro na conexão com o Google Sheets. Verifique os Secrets.")
     st.stop()
 
+# --- FUNÇÕES DE LEITURA E ESCRITA ---
 def ler_aba(nome_aba):
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)
@@ -28,163 +37,308 @@ def ler_aba(nome_aba):
 def salvar_dados(nome_aba, df_novo):
     try:
         conn.update(worksheet=nome_aba, data=df_novo)
-        st.cache_data.clear() 
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
 
-# --- CONTROLE DE ACESSO ---
-if 'logado' not in st.session_state:
-    st.session_state.logado = False
-if 'usuario' not in st.session_state:
-    st.session_state.usuario = None
+# --- FUNÇÕES DE SESSÃO PERSISTENTE COM COOKIES ---
+def criar_sessao(usuario):
+    """Cria sessão com validade de 5 horas via cookie."""
+    expiry = (datetime.now() + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
+    dados_sessao = json.dumps({"usuario": usuario, "expiry": expiry})
+    cookie_manager.set(
+        COOKIE_NAME,
+        dados_sessao,
+        expires_at=datetime.now() + timedelta(hours=SESSION_HORAS),
+        key="set_session"
+    )
+    st.session_state.logado = True
+    st.session_state.usuario = usuario
 
-# --- TELAS DE LOGIN E CADASTRO ---
+def verificar_sessao_cookie():
+    """Verifica se existe um cookie de sessão válido ainda não expirado."""
+    try:
+        raw = cookie_manager.get(cookie=COOKIE_NAME)
+        if raw:
+            dados = json.loads(raw)
+            expiry = datetime.strptime(dados["expiry"], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() < expiry:
+                return dados["usuario"]
+    except Exception:
+        pass
+    return None
+
+def encerrar_sessao():
+    """Remove o cookie e limpa o session state."""
+    try:
+        cookie_manager.delete(COOKIE_NAME, key="del_session")
+    except Exception:
+        pass
+    st.session_state.logado = False
+    st.session_state.usuario = None
+    st.session_state.nav_history = []
+    st.session_state.pagina_atual = "Listar Processos"
+
+# --- INICIALIZAÇÃO DO SESSION STATE ---
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+if "usuario" not in st.session_state:
+    st.session_state.usuario = None
+if "nav_history" not in st.session_state:
+    st.session_state.nav_history = []
+if "pagina_atual" not in st.session_state:
+    st.session_state.pagina_atual = "Listar Processos"
+
+# Tenta recuperar sessão do cookie se não estiver logado
+if not st.session_state.logado:
+    usuario_recuperado = verificar_sessao_cookie()
+    if usuario_recuperado:
+        st.session_state.logado = True
+        st.session_state.usuario = usuario_recuperado
+
+# --- TELA DE LOGIN / CADASTRO ---
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("⚖️ Sistema Seindec - PROCON Arapiraca")
         aba_l, aba_c = st.tabs(["Acessar", "Criar Conta"])
-        
+
         with aba_l:
-            u = st.text_input("Usuário")
-            s = st.text_input("Senha", type="password")
+            u = st.text_input("Usuário", key="login_user")
+            s = st.text_input("Senha", type="password", key="login_pass")
             if st.button("Entrar"):
                 df_u = ler_aba("usuarios")
-                user = df_u[(df_u['login'] == u) & (df_u['senha'].astype(str) == str(s))]
+                user = df_u[(df_u["login"] == u) & (df_u["senha"].astype(str) == str(s))]
                 if not user.empty:
-                    st.session_state.logado = True
-                    st.session_state.usuario = u
+                    criar_sessao(u)
                     st.rerun()
                 else:
                     st.error("Login ou senha inválidos.")
-        
+
         with aba_c:
-            nu = st.text_input("Novo Usuário")
-            ns = st.text_input("Nova Senha", type="password")
+            nu = st.text_input("Novo Usuário", key="reg_user")
+            ns = st.text_input("Nova Senha", type="password", key="reg_pass")
             if st.button("Registrar"):
                 df_u = ler_aba("usuarios")
-                if nu in df_u['login'].values:
+                if nu in df_u["login"].values:
                     st.error("Usuário já existe.")
                 else:
-                    novo_u = pd.DataFrame([{"id": len(df_u)+1, "login": nu, "senha": ns}])
+                    novo_u = pd.DataFrame([{"id": len(df_u) + 1, "login": nu, "senha": ns}])
                     salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
-                    st.success("Conta criada!")
+                    st.success("Conta criada! Agora faça login.")
     st.stop()
 
-# --- ÁREA LOGADA ---
+# =====================================================================
+# ÁREA LOGADA
+# =====================================================================
+
+# --- FUNÇÕES DE NAVEGAÇÃO ---
+def navegar_para(destino):
+    """Empilha a página atual e navega para o destino."""
+    if st.session_state.pagina_atual != destino:
+        st.session_state.nav_history.append(st.session_state.pagina_atual)
+        st.session_state.pagina_atual = destino
+
+def voltar_pagina():
+    """Retorna para a página anterior sem deslogar."""
+    if st.session_state.nav_history:
+        st.session_state.pagina_atual = st.session_state.nav_history.pop()
+    else:
+        st.session_state.pagina_atual = "Listar Processos"
+
+# --- SIDEBAR ---
 st.sidebar.title(f"👤 {st.session_state.usuario}")
-if st.sidebar.button("Sair"):
-    st.session_state.logado = False
+st.sidebar.markdown("---")
+
+# Botão Voltar — só aparece se houver histórico de navegação
+if st.session_state.nav_history:
+    if st.sidebar.button("◀️ Voltar"):
+        voltar_pagina()
+        st.rerun()
+
+if st.sidebar.button("🔍 Listar Processos"):
+    navegar_para("Listar Processos")
     st.rerun()
 
-menu = st.sidebar.radio("Navegação", ["Listar Processos", "Cadastrar Processo"])
+if st.sidebar.button("📄 Cadastrar Processo"):
+    navegar_para("Cadastrar Processo")
+    st.rerun()
 
+st.sidebar.markdown("---")
+
+if st.sidebar.button("🚪 Sair"):
+    encerrar_sessao()
+    st.rerun()
+
+# Indicador de sessão ativa
+st.sidebar.caption(f"Sessão ativa por até {SESSION_HORAS}h após o login.")
+
+# --- PÁGINA ATUAL ---
+menu = st.session_state.pagina_atual
+
+# =====================================================================
+# CADASTRAR PROCESSO
+# =====================================================================
 if menu == "Cadastrar Processo":
     st.header("📄 Novo Cadastro")
-    with st.form("novo_p"):
-        num = st.text_input("Nº Processo")
+    with st.form("novo_processo"):
+        num  = st.text_input("Nº Processo")
         cons = st.text_input("Consumidor")
         forn = st.text_input("Fornecedor")
         tram = st.text_input("Tramitação Atual")
-        obs = st.text_area("Anotações")
-        if st.form_submit_button("Salvar"):
+        obs  = st.text_area("Anotações")
+
+        if st.form_submit_button("💾 Salvar"):
             df_p = ler_aba("processos")
             df_h = ler_aba("historico")
-            p_id = int(df_p['id'].max() + 1) if not df_p.empty else 1
-            
-            novo_p = pd.DataFrame([{"id": p_id, "numero": num, "consumidor": cons, "fornecedor": forn, "tramitacao": tram, "anotacoes": obs}])
-            novo_h = pd.DataFrame([{"id": len(df_h)+1, "processo_id": p_id, "tramitacao_texto": tram, "usuario_responsavel": st.session_state.usuario, "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")}])
-            
+            p_id = int(df_p["id"].max() + 1) if not df_p.empty else 1
+
+            novo_p = pd.DataFrame([{
+                "id": p_id, "numero": num, "consumidor": cons,
+                "fornecedor": forn, "tramitacao": tram, "anotacoes": obs
+            }])
+            novo_h = pd.DataFrame([{
+                "id": len(df_h) + 1, "processo_id": p_id,
+                "tramitacao_texto": tram,
+                "usuario_responsavel": st.session_state.usuario,
+                "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
+            }])
+
             salvar_dados("processos", pd.concat([df_p, novo_p], ignore_index=True))
             salvar_dados("historico", pd.concat([df_h, novo_h], ignore_index=True))
-            st.success("Processo salvo!")
+            st.success("✅ Processo salvo com sucesso!")
 
+# =====================================================================
+# LISTAR PROCESSOS
+# =====================================================================
 elif menu == "Listar Processos":
-    st.header("🔍 Consulta")
+    st.header("🔍 Consulta de Processos")
+
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
-    
+
     busca = st.text_input("Buscar por nome ou número")
-    
+
     df_exibicao = df_p_master.copy()
     if busca:
-        # --- LÓGICA DE PESQUISA POR ALGORITMOS (IGNORANDO PONTUAÇÃO) ---
-        # Extrai apenas os dígitos da busca do usuário
         busca_numerica = "".join(filter(str.isdigit, busca))
-        
-        # Filtro por nome (Consumidor) - comportamento padrão
-        filtro_nome = df_exibicao['consumidor'].str.contains(busca, case=False, na=False)
-        
+        filtro_nome = df_exibicao["consumidor"].str.contains(busca, case=False, na=False)
+
         if busca_numerica:
-            # Se houver números na busca, limpa a coluna 'numero' da planilha (remove \D = não dígitos)
-            # e compara com a busca numérica
-            filtro_numero = df_exibicao['numero'].astype(str).str.replace(r'\D', '', regex=True).str.contains(busca_numerica, na=False)
+            filtro_numero = (
+                df_exibicao["numero"]
+                .astype(str)
+                .str.replace(r"\D", "", regex=True)
+                .str.contains(busca_numerica, na=False)
+            )
             df_exibicao = df_exibicao[filtro_nome | filtro_numero]
         else:
-            # Se não houver números na busca, filtra apenas pelo nome ou busca textual no número
-            filtro_numero_textual = df_exibicao['numero'].astype(str).str.contains(busca, case=False, na=False)
+            filtro_numero_textual = df_exibicao["numero"].astype(str).str.contains(busca, case=False, na=False)
             df_exibicao = df_exibicao[filtro_nome | filtro_numero_textual]
 
     for _, p in df_exibicao.iterrows():
         with st.expander(f"📦 {p['numero']} - {p['consumidor']}"):
+
+            # --- Visualização dos dados atuais ---
             c1, c2 = st.columns(2)
             with c1:
                 st.write(f"**Fornecedor:** {p['fornecedor']}")
                 st.write(f"**Status Atual:** {p['tramitacao']}")
             with c2:
                 st.write(f"**Anotações:** {p['anotacoes']}")
-            
+
             st.divider()
-            
+
+            # ─── BOTÃO PARA ALTERNAR MODO DE EDIÇÃO ───────────────────────
+            edit_key = f"edit_mode_{p['id']}"
+            if edit_key not in st.session_state:
+                st.session_state[edit_key] = False
+
+            label_btn = "✏️ Editar Processo" if not st.session_state[edit_key] else "✖️ Fechar Edição"
+            if st.button(label_btn, key=f"toggle_{p['id']}"):
+                st.session_state[edit_key] = not st.session_state[edit_key]
+                st.rerun()
+
+            # ─── FORMULÁRIO DE EDIÇÃO ─────────────────────────────────────
+            if st.session_state[edit_key]:
+                st.subheader("✏️ Editar dados do processo")
+                with st.form(f"form_edicao_{p['id']}"):
+                    e_num  = st.text_input("Nº Processo",      value=str(p["numero"]))
+                    e_cons = st.text_input("Consumidor",        value=str(p["consumidor"]))
+                    e_forn = st.text_input("Fornecedor",        value=str(p["fornecedor"]))
+                    e_tram = st.text_input("Tramitação Atual",  value=str(p["tramitacao"]))
+                    e_obs  = st.text_area ("Anotações",         value=str(p["anotacoes"]))
+
+                    col_salvar, col_cancelar = st.columns(2)
+                    with col_salvar:
+                        salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
+                    with col_cancelar:
+                        cancelar_edicao = st.form_submit_button("❌ Cancelar")
+
+                    if salvar_edicao:
+                        idx = df_p_master[df_p_master["id"] == p["id"]].index
+                        df_p_master.loc[idx, "numero"]     = e_num
+                        df_p_master.loc[idx, "consumidor"] = e_cons
+                        df_p_master.loc[idx, "fornecedor"] = e_forn
+                        df_p_master.loc[idx, "tramitacao"] = e_tram
+                        df_p_master.loc[idx, "anotacoes"]  = e_obs
+                        salvar_dados("processos", df_p_master)
+                        st.session_state[edit_key] = False
+                        st.success("✅ Processo atualizado com sucesso!")
+                        st.rerun()
+
+                    if cancelar_edicao:
+                        st.session_state[edit_key] = False
+                        st.rerun()
+
+                st.divider()
+
+            # ─── HISTÓRICO DE TRAMITAÇÕES ─────────────────────────────────
             st.subheader("📜 Histórico de Tramitações")
-            hist_p = df_h_master[df_h_master['processo_id'].astype(str) == str(p['id'])]
+            hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
             if not hist_p.empty:
                 st.dataframe(
-                    hist_p[['data_mudanca', 'tramitacao_texto', 'usuario_responsavel']].sort_index(ascending=False), 
+                    hist_p[["data_mudanca", "tramitacao_texto", "usuario_responsavel"]]
+                    .sort_index(ascending=False),
                     use_container_width=True,
-                    hide_index=True
+                    hide_index=True,
                 )
             else:
                 st.info("Nenhum histórico encontrado.")
 
             st.divider()
 
+            # ─── ATUALIZAR TRAMITAÇÃO ─────────────────────────────────────
             nova_t = st.text_input("Nova Tramitação", key=f"in_{p['id']}")
-            if st.button("Confirmar Atualização", key=f"btn_{p['id']}"):
+            if st.button("✅ Confirmar Atualização", key=f"btn_{p['id']}"):
                 if nova_t:
-                    df_p_master.loc[df_p_master['id'] == p['id'], 'tramitacao'] = nova_t
+                    df_p_master.loc[df_p_master["id"] == p["id"], "tramitacao"] = nova_t
                     n_h = pd.DataFrame([{
                         "id": len(df_h_master) + 1,
-                        "processo_id": p['id'],
+                        "processo_id": p["id"],
                         "tramitacao_texto": nova_t,
                         "usuario_responsavel": st.session_state.usuario,
-                        "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
+                        "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     }])
                     salvar_dados("processos", df_p_master)
                     salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
-                    st.success("Atualizado!")
+                    st.success("✅ Tramitação atualizada!")
                     st.rerun()
 
-# --- RODAPÉ PERSONALIZADO ---
+# --- RODAPÉ ---
 st.markdown(
     """
     <style>
     .footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        background-color: transparent;
-        color: #888;
-        text-align: center;
-        padding: 10px;
-        font-size: 12px;
-        font-weight: light;
+        position: fixed; left: 0; bottom: 0; width: 100%;
+        background-color: transparent; color: #888;
+        text-align: center; padding: 10px;
+        font-size: 12px; font-weight: light;
     }
     </style>
     <div class="footer">
-        Seindec AL - Sistema Extinto de Informações de Defesa do Consumidor de Alagoas - Unidade Arapiraca
+        Seindec AL — Sistema Extinto de Informações de Defesa do Consumidor de Alagoas — Unidade Arapiraca
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )

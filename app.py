@@ -233,6 +233,14 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 cancelar = st.form_submit_button("❌ Cancelar")
 
             if salvar:
+                # --- CORREÇÃO DO ERRO ---
+                # Força o Pandas a tratar estas colunas como Texto (object) antes de atualizar
+                # Isso evita o TypeError de tentar colocar uma string em coluna float
+                cols_to_object = ["numero", "consumidor", "cpf_consumidor", "fornecedor", "cnpj_fornecedor", "tramitacao", "anotacoes"]
+                for c in cols_to_object:
+                    if c in df_p_master.columns:
+                        df_p_master[c] = df_p_master[c].astype(object)
+
                 idx = df_p_master[df_p_master["id"] == p["id"]].index
                 df_p_master.loc[idx, "numero"]          = e_num
                 df_p_master.loc[idx, "consumidor"]      = e_cons
@@ -264,6 +272,11 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     nova_t = st.text_input("🔄 Adicionar Nova Tramitação", key=f"in_{chave}")
     if st.button("✅ Confirmar Atualização", key=f"btn_{chave}"):
         if nova_t:
+            # --- CORREÇÃO DO ERRO ---
+            # Previne falhas se a coluna tramitação foi inferida como vazia/float
+            if "tramitacao" in df_p_master.columns:
+                df_p_master["tramitacao"] = df_p_master["tramitacao"].astype(object)
+                
             df_p_master.loc[df_p_master["id"] == p["id"], "tramitacao"] = nova_t
             n_h = pd.DataFrame([{
                 "id": len(df_h_master)+1, "processo_id": p["id"],

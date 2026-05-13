@@ -261,14 +261,14 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
     if dados_existentes is None:
         dados_existentes = {}
     
-    num_default = dados_existentes.get("numero", "")
-    cons_default = dados_existentes.get("consumidor", "")
-    cpf_default = dados_existentes.get("cpf_consumidor", "")
-    nf_default = dados_existentes.get("nome_fantasia_fornecedor", "")
-    rs_default = dados_existentes.get("razao_social_fornecedor", "")
-    cnpj_default = dados_existentes.get("cnpj_fornecedor", "")
-    tram_default = dados_existentes.get("tramitacao", "")
-    obs_default = dados_existentes.get("anotacoes", "")
+    num_default = str(dados_existentes.get("numero", "")) if pd.notna(dados_existentes.get("numero", "")) else ""
+    cons_default = str(dados_existentes.get("consumidor", "")) if pd.notna(dados_existentes.get("consumidor", "")) else ""
+    cpf_default = str(dados_existentes.get("cpf_consumidor", "")) if pd.notna(dados_existentes.get("cpf_consumidor", "")) else ""
+    nf_default = str(dados_existentes.get("nome_fantasia_fornecedor", "")) if pd.notna(dados_existentes.get("nome_fantasia_fornecedor", "")) else ""
+    rs_default = str(dados_existentes.get("razao_social_fornecedor", "")) if pd.notna(dados_existentes.get("razao_social_fornecedor", "")) else ""
+    cnpj_default = str(dados_existentes.get("cnpj_fornecedor", "")) if pd.notna(dados_existentes.get("cnpj_fornecedor", "")) else ""
+    tram_default = str(dados_existentes.get("tramitacao", "")) if pd.notna(dados_existentes.get("tramitacao", "")) else ""
+    obs_default = str(dados_existentes.get("anotacoes", "")) if pd.notna(dados_existentes.get("anotacoes", "")) else ""
     
     # Parse dos fornecedores já existentes
     lista_nf = [x.strip() for x in nf_default.split(";") if x.strip()]

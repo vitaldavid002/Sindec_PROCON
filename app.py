@@ -304,9 +304,12 @@ elif menu == "Consultar Processos":
         
         if df_ex.empty: st.warning("⚠️ Nenhum processo encontrado.")
         else:
+            st.info(f"📋 Exibindo {len(df_ex)} resultado(s).")
             for _, p in df_ex.iterrows():
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                     exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
+    else:
+        st.info("💡 Digite algo acima para pesquisar os processos cadastrados.")
 
 # --- PESQUISA AVANCADA ---
 

@@ -95,7 +95,7 @@ def criar_sessao(usuario):
     nova_linha = pd.DataFrame([{
         "token": token, 
         "usuario": usuario, 
-        "expiry": expira_texto
+        "expiry": texto_expira
     }])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
@@ -104,7 +104,7 @@ def criar_sessao(usuario):
     cookie_manager.set(
         "seindec_token", 
         token, 
-        expires_at=expiry_data # Define a data exata de expiração
+        expires_at=data_expira # Define a data exata de expiração
     )
     
     st.session_state.logado = True

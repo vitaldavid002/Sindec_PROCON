@@ -2,16 +2,11 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-import extra_streamlit_components as stx
-import json
+import secrets
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", layout="wide")
 
-# --- GERENCIADOR DE COOKIES (inicializado antes de qualquer elemento) ---
-cookie_manager = stx.CookieManager(key="seindec_cookies")
-
-COOKIE_NAME = "seindec_session"
 SESSION_HORAS = 5
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
@@ -26,11 +21,13 @@ def ler_aba(nome_aba):
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)
         return df.dropna(how="all")
-    except Exception as e:
+    except Exception:
         if nome_aba == "usuarios":
             return pd.DataFrame(columns=["id", "login", "senha"])
         elif nome_aba == "processos":
             return pd.DataFrame(columns=["id", "numero", "consumidor", "fornecedor", "tramitacao", "anotacoes"])
+        elif nome_aba == "sessoes":
+            return pd.DataFrame(columns=["token", "usuario", "expiry"])
         else:
             return pd.DataFrame(columns=["id", "processo_id", "tramitacao_texto", "usuario_responsavel", "data_mudanca"])
 
@@ -41,39 +38,43 @@ def salvar_dados(nome_aba, df_novo):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
 
-# --- FUNÇÕES DE SESSÃO PERSISTENTE COM COOKIES ---
+# --- FUNÇÕES DE SESSÃO (token na URL + registro no Google Sheets) ---
 def criar_sessao(usuario):
-    """Cria sessão com validade de 5 horas via cookie."""
+    token = secrets.token_urlsafe(32)
     expiry = (datetime.now() + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
-    dados_sessao = json.dumps({"usuario": usuario, "expiry": expiry})
-    cookie_manager.set(
-        COOKIE_NAME,
-        dados_sessao,
-        expires_at=datetime.now() + timedelta(hours=SESSION_HORAS),
-        key="set_session"
-    )
+    df_s = ler_aba("sessoes")
+    df_s = df_s[df_s["usuario"] != usuario]
+    nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
+    salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
+    st.query_params["token"] = token
     st.session_state.logado = True
     st.session_state.usuario = usuario
 
-def verificar_sessao_cookie():
-    """Verifica se existe um cookie de sessão válido ainda não expirado."""
+def verificar_sessao():
+    token = st.query_params.get("token")
+    if not token:
+        return None
+    df_s = ler_aba("sessoes")
+    if df_s.empty:
+        return None
+    linha = df_s[df_s["token"] == token]
+    if linha.empty:
+        return None
     try:
-        raw = cookie_manager.get(cookie=COOKIE_NAME)
-        if raw:
-            dados = json.loads(raw)
-            expiry = datetime.strptime(dados["expiry"], "%Y-%m-%d %H:%M:%S")
-            if datetime.now() < expiry:
-                return dados["usuario"]
+        expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
     except Exception:
-        pass
-    return None
+        return None
+    if datetime.now() > expiry:
+        return None
+    return str(linha.iloc[0]["usuario"])
 
 def encerrar_sessao():
-    """Remove o cookie e limpa o session state."""
-    try:
-        cookie_manager.delete(COOKIE_NAME, key="del_session")
-    except Exception:
-        pass
+    token = st.query_params.get("token")
+    if token:
+        df_s = ler_aba("sessoes")
+        df_s = df_s[df_s["token"] != token]
+        salvar_dados("sessoes", df_s)
+    st.query_params.clear()
     st.session_state.logado = False
     st.session_state.usuario = None
     st.session_state.nav_history = []
@@ -89,14 +90,16 @@ if "nav_history" not in st.session_state:
 if "pagina_atual" not in st.session_state:
     st.session_state.pagina_atual = "Listar Processos"
 
-# Tenta recuperar sessão do cookie se não estiver logado
+# Recupera sessão do token na URL (sobrevive a refresh de página)
 if not st.session_state.logado:
-    usuario_recuperado = verificar_sessao_cookie()
+    usuario_recuperado = verificar_sessao()
     if usuario_recuperado:
         st.session_state.logado = True
         st.session_state.usuario = usuario_recuperado
 
-# --- TELA DE LOGIN / CADASTRO ---
+# =====================================================================
+# TELA DE LOGIN / CADASTRO
+# =====================================================================
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -132,15 +135,12 @@ if not st.session_state.logado:
 # ÁREA LOGADA
 # =====================================================================
 
-# --- FUNÇÕES DE NAVEGAÇÃO ---
 def navegar_para(destino):
-    """Empilha a página atual e navega para o destino."""
     if st.session_state.pagina_atual != destino:
         st.session_state.nav_history.append(st.session_state.pagina_atual)
         st.session_state.pagina_atual = destino
 
 def voltar_pagina():
-    """Retorna para a página anterior sem deslogar."""
     if st.session_state.nav_history:
         st.session_state.pagina_atual = st.session_state.nav_history.pop()
     else:
@@ -150,7 +150,6 @@ def voltar_pagina():
 st.sidebar.title(f"👤 {st.session_state.usuario}")
 st.sidebar.markdown("---")
 
-# Botão Voltar — só aparece se houver histórico de navegação
 if st.session_state.nav_history:
     if st.sidebar.button("◀️ Voltar"):
         voltar_pagina()
@@ -170,15 +169,13 @@ if st.sidebar.button("🚪 Sair"):
     encerrar_sessao()
     st.rerun()
 
-# Indicador de sessão ativa
 st.sidebar.caption(f"Sessão ativa por até {SESSION_HORAS}h após o login.")
-
-# --- PÁGINA ATUAL ---
-menu = st.session_state.pagina_atual
 
 # =====================================================================
 # CADASTRAR PROCESSO
 # =====================================================================
+menu = st.session_state.pagina_atual
+
 if menu == "Cadastrar Processo":
     st.header("📄 Novo Cadastro")
     with st.form("novo_processo"):
@@ -239,7 +236,6 @@ elif menu == "Listar Processos":
     for _, p in df_exibicao.iterrows():
         with st.expander(f"📦 {p['numero']} - {p['consumidor']}"):
 
-            # --- Visualização dos dados atuais ---
             c1, c2 = st.columns(2)
             with c1:
                 st.write(f"**Fornecedor:** {p['fornecedor']}")
@@ -249,7 +245,7 @@ elif menu == "Listar Processos":
 
             st.divider()
 
-            # ─── BOTÃO PARA ALTERNAR MODO DE EDIÇÃO ───────────────────────
+            # ── Botão para alternar modo de edição ──────────────────────
             edit_key = f"edit_mode_{p['id']}"
             if edit_key not in st.session_state:
                 st.session_state[edit_key] = False
@@ -259,20 +255,20 @@ elif menu == "Listar Processos":
                 st.session_state[edit_key] = not st.session_state[edit_key]
                 st.rerun()
 
-            # ─── FORMULÁRIO DE EDIÇÃO ─────────────────────────────────────
+            # ── Formulário de edição ─────────────────────────────────────
             if st.session_state[edit_key]:
                 st.subheader("✏️ Editar dados do processo")
                 with st.form(f"form_edicao_{p['id']}"):
-                    e_num  = st.text_input("Nº Processo",      value=str(p["numero"]))
-                    e_cons = st.text_input("Consumidor",        value=str(p["consumidor"]))
-                    e_forn = st.text_input("Fornecedor",        value=str(p["fornecedor"]))
-                    e_tram = st.text_input("Tramitação Atual",  value=str(p["tramitacao"]))
-                    e_obs  = st.text_area ("Anotações",         value=str(p["anotacoes"]))
+                    e_num  = st.text_input("Nº Processo",     value=str(p["numero"]))
+                    e_cons = st.text_input("Consumidor",       value=str(p["consumidor"]))
+                    e_forn = st.text_input("Fornecedor",       value=str(p["fornecedor"]))
+                    e_tram = st.text_input("Tramitação Atual", value=str(p["tramitacao"]))
+                    e_obs  = st.text_area ("Anotações",        value=str(p["anotacoes"]))
 
-                    col_salvar, col_cancelar = st.columns(2)
-                    with col_salvar:
+                    col_s, col_c = st.columns(2)
+                    with col_s:
                         salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
-                    with col_cancelar:
+                    with col_c:
                         cancelar_edicao = st.form_submit_button("❌ Cancelar")
 
                     if salvar_edicao:
@@ -293,7 +289,7 @@ elif menu == "Listar Processos":
 
                 st.divider()
 
-            # ─── HISTÓRICO DE TRAMITAÇÕES ─────────────────────────────────
+            # ── Histórico de tramitações ─────────────────────────────────
             st.subheader("📜 Histórico de Tramitações")
             hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
             if not hist_p.empty:
@@ -308,7 +304,7 @@ elif menu == "Listar Processos":
 
             st.divider()
 
-            # ─── ATUALIZAR TRAMITAÇÃO ─────────────────────────────────────
+            # ── Atualizar tramitação ─────────────────────────────────────
             nova_t = st.text_input("Nova Tramitação", key=f"in_{p['id']}")
             if st.button("✅ Confirmar Atualização", key=f"btn_{p['id']}"):
                 if nova_t:
@@ -333,7 +329,7 @@ st.markdown(
         position: fixed; left: 0; bottom: 0; width: 100%;
         background-color: transparent; color: #888;
         text-align: center; padding: 10px;
-        font-size: 12px; font-weight: light;
+        font-size: 12px;
     }
     </style>
     <div class="footer">

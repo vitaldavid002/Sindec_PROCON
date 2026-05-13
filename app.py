@@ -101,7 +101,8 @@ def criar_sessao(usuario):
         "seindec_token", 
         token, 
         expires_at=expiry_dt # Define a data exata de expiração
-        
+    )
+    
     st.session_state.logado = True
     st.session_state.usuario = usuario
 

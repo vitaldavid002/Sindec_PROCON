@@ -7,6 +7,14 @@ import secrets
 import re
 import extra_streamlit_components as stx
 
+# --- CONFIGURAÇÃO DO COOKIE (Logo aqui no topo) ---
+@st.cache_resource
+def get_cookie_manager():
+    return stx.CookieManager()
+
+# Criamos a variável globalmente para que todas as funções a vejam
+cookie_manager = get_cookie_manager()
+
 # --- CONFIGURACAO DO FUSO HORARIO BRASILIA ---
 FUSO_BR = timezone(timedelta(hours=-3))
 

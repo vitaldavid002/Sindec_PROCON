@@ -1,9 +1,12 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone # Adicionado timezone
 import secrets
 import re
+
+# --- CONFIGURACAO DO FUSO HORARIO BRASILIA ---
+FUSO_BR = timezone(timedelta(hours=-3))
 
 # --- CONFIGURACAO DA PAGINA ---
 st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", page_icon="⚖️", layout="wide")
@@ -64,7 +67,8 @@ def filtro_codigo(serie, termo):
 # --- SESSAO ---
 def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
-    expiry = (datetime.now() + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
+    # Ajustado para fuso de Brasília
+    expiry = (datetime.now(FUSO_BR) + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
     df_s = ler_aba("sessoes")
     df_s = df_s[df_s["usuario"] != usuario]
     nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
@@ -87,7 +91,8 @@ def verificar_sessao():
         expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
     except Exception:
         return None
-    if datetime.now() > expiry:
+    # Comparação ajustada para fuso de Brasília (removendo tzinfo para comparar com strptime)
+    if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
         return None
     return str(linha.iloc[0]["usuario"])
 
@@ -277,7 +282,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 "id": len(df_h_master)+1, "processo_id": p["id"],
                 "tramitacao_texto": nova_t,
                 "usuario_responsavel": st.session_state.usuario,
-                "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
+                "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M") # Ajustado
             }])
             salvar_dados("processos", df_p_master)
             salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
@@ -321,7 +326,7 @@ if menu == "Cadastrar Processo":
                 "id": len(df_h)+1, "processo_id": p_id,
                 "tramitacao_texto": tram,
                 "usuario_responsavel": st.session_state.usuario,
-                "data_mudanca": datetime.now().strftime("%d/%m/%Y %H:%M")
+                "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M") # Ajustado
             }])
             salvar_dados("processos", pd.concat([df_p, novo_p], ignore_index=True))
             salvar_dados("historico", pd.concat([df_h, novo_h], ignore_index=True))

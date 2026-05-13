@@ -309,7 +309,7 @@ if menu == "Cadastrar Processo":
             forn = st.text_input("🏢 Fornecedor")
         with cd:
             cnpj = st.text_input("📄 CNPJ do Fornecedor", placeholder="00.000.000/0000-00")
-        tram = st.text_input("📊 Tramitação Atual")
+        tram = st.text_input("📊 Situação Atual")
         obs  = st.text_area("📝 Anotações")
 
         if st.form_submit_button("💾 Salvar Novo Processo"):

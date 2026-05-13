@@ -6,20 +6,16 @@ import secrets
 import re
 import extra_streamlit_components as stx
 
-# --- CONFIGURAÇÃO DO COOKIE (Logo aqui no topo) ---
-@st.cache_resource
-def get_cookie_manager():
-    return stx.CookieManager()
-
-# Criamos a variável globalmente para que todas as funções a vejam
-cookie_manager = get_cookie_manager()
-
 # --- CONFIGURACAO DO FUSO HORARIO BRASILIA ---
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # --- CONFIGURACAO DA PAGINA ---
-st.set_page_config(page_title="Seindec Arapiraca - Sistema Integrado", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Seindec Arapiraca", page_icon="⚖️", layout="wide")
 
+# Inicialize o CookieManager SEM o @st.cache_resource
+cookie_manager = stx.CookieManager()
+
+# Tempo de sessão
 SESSION_HORAS = 5
 
 # --- CONEXAO COM GOOGLE SHEETS ---
@@ -138,6 +134,8 @@ if "usuario" not in st.session_state: st.session_state.usuario = None
 
 # --- FLUXO DE AUTENTICAÇÃO ---
 if not st.session_state.logado:
+    # Pequena trava: o CookieManager retorna None ou {} enquanto carrega
+    # Aguardamos ele estar pronto para verificar a sessão
     usuario_recuperado = verificar_sessao()
     
     if usuario_recuperado:
@@ -145,8 +143,10 @@ if not st.session_state.logado:
         st.session_state.usuario = usuario_recuperado
         st.rerun()
     else:
-   # TELA DE LOGIN / CADASTRO
+        # Se após carregar não houver usuário, mostra a tela de login
         st.title("⚖️ Sistema Seindec Arapiraca")
+        
+        # Aqui você coloca o código das tabs de Login e Cadastro que fizemos antes
         tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])
     with tab_login:
         with st.form("form_login"):

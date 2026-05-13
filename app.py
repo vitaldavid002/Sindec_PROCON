@@ -83,7 +83,10 @@ for chave, valor_padrao in chaves_obrigatorias.items():
         
 def criar_sessao(usuario):
     token = secrets.token_urlsafe(32)
-    expiry = (datetime.now(FUSO_BR) + timedelta(hours=SESSION_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
+    # Define expiração para 5 horas no futuro
+    agora = datetime.now(FUSO_BR)
+    expiry_dt = agora + timedelta(hours=SESSION_HORAS)
+    expiry_str = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
     
     df_s = ler_aba("sessoes")
     # Remove sessões antigas do mesmo usuário para evitar duplicidade
@@ -94,8 +97,11 @@ def criar_sessao(usuario):
     
    # 2. Salva no Navegador (Cookie Real)
     # max_age é em segundos (5h * 3600s)
-    cookie_manager.set("seindec_token", token, max_age=SESSION_HORAS * 3600)
-    
+    cookie_manager.set(
+        "seindec_token", 
+        token, 
+        expires_at=expiry_dt # Define a data exata de expiração
+        
     st.session_state.logado = True
     st.session_state.usuario = usuario
 
@@ -145,12 +151,14 @@ if "logado" not in st.session_state: st.session_state.logado = False
 if "usuario" not in st.session_state: st.session_state.usuario = None
 
 if not st.session_state.logado:
-    usuario_recuperado = verificar_sessao()
+    token_do_cookie = cookie_manager.get("seindec_token")
     
-    if usuario_recuperado:
-        st.session_state.logado = True
-        st.session_state.usuario = usuario_recuperado
-        st.rerun()
+    if token_do_cookie:
+        usuario_recuperado = verificar_sessao()
+        if usuario_recuperado:
+            st.session_state.logado = True
+            st.session_state.usuario = usuario_recuperado
+            st.rerun()
     else:
         # Se após carregar não houver usuário, mostra a tela de login
         st.title("⚖️ Sistema Seindec Arapiraca")

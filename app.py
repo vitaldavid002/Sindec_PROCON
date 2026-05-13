@@ -178,7 +178,7 @@ if not st.session_state.logado:
                 df_u = ler_aba("usuarios")
                 user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
                 if not user_valido.empty:
-                    criar_sessao(usuario)
+                    criar_sessao(u_log)
                     st.success("Login realizado!")
                     st.rerun()
                 else:

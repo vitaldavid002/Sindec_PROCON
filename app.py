@@ -123,19 +123,16 @@ def encerrar_sessao():
 # --- INITIALIZE SESSION STATE ---
 if "logado" not in st.session_state: st.session_state.logado = False
 if "usuario" not in st.session_state: st.session_state.usuario = None
-if "pagina_atual" not in st.session_state: st.session_state.pagina_atual = "Consultar Processos"
-if "nav_history" not in st.session_state: st.session_state.nav_history = []
-if "n_forn" not in st.session_state: st.session_state.n_forn = 1
 
 # --- FLUXO DE AUTENTICAÇÃO ---
 if not st.session_state.logado:
-    # Tenta recuperar sessão via URL
     usuario_recuperado = verificar_sessao()
+    
     if usuario_recuperado:
         st.session_state.logado = True
         st.session_state.usuario = usuario_recuperado
         st.rerun()
-    
+    else:
     # Se não recuperou, mostra Tela de Login/Cadastro
     st.title("⚖️ Sistema Seindec Arapiraca")
     tab_login, tab_cadastro = st.tabs(["🔐 Login", "📝 Cadastrar Usuário"])

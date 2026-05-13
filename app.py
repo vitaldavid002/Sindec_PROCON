@@ -308,27 +308,62 @@ elif menu == "Consultar Processos":
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                     exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
 
+# --- PESQUISA AVANCADA ---
+
 elif menu == "Pesquisa Avancada":
     st.header("🔎 Pesquisa Avançada")
+    st.caption("💡 Preencha um ou mais campos. Todos os filtros preenchidos serão aplicados juntos.")
+
+
     df_p_master = ler_aba("processos")
     df_h_master = ler_aba("historico")
+
+
     with st.form("pesquisa_avancada"):
-        c1, c2 = st.columns(2)
-        with c1:
-            f_numero = st.text_input("📌 Número do Processo")
+        st.subheader("⚙️ Filtros de Busca")
+        col1, col2 = st.columns(2)
+        with col1:
+            f_numero     = st.text_input("📌 Número do Processo",
+                                         placeholder="Ex: 0001/2024 (Pontuação ignorada)")
             f_consumidor = st.text_input("👤 Nome do Consumidor")
-        with c2:
+            f_cpf        = st.text_input("🪪 CPF do Consumidor",
+                                         placeholder="Ex: 123.456.789-00 (Pontuação ignorada)")
+        with col2:
             f_fornecedor = st.text_input("🏢 Nome do Fornecedor")
+            f_cnpj       = st.text_input("📄 CNPJ do Fornecedor",
+                                         placeholder="Ex: 00.000.000/0000-00 (Pontuação ignorada)")
             f_tramitacao = st.text_input("📊 Tramitação Atual")
-        if st.form_submit_button("🚀 Pesquisar"):
-            df_res = df_p_master.copy()
-            if f_numero: df_res = df_res[filtro_codigo(df_res["numero"], f_numero)]
-            if f_consumidor: df_res = df_res[filtro_texto(df_res["consumidor"], f_consumidor)]
-            if f_fornecedor: df_res = df_res[filtro_texto(df_res["fornecedor"], f_fornecedor)]
-            if f_tramitacao: df_res = df_res[filtro_texto(df_res["tramitacao"], f_tramitacao)]
+
+        pesquisar = st.form_submit_button("🚀 Pesquisar")
+
+    if pesquisar:
+        df_res = df_p_master.copy()
+
+        if f_numero:
+            df_res = df_res[filtro_codigo(df_res["numero"], f_numero)]
+        if f_cpf:
+            df_res = df_res[filtro_codigo(df_res.get("cpf_consumidor", pd.Series([""] * len(df_res), index=df_res.index)), f_cpf)]
+        if f_cnpj:
+            df_res = df_res[filtro_codigo(df_res.get("cnpj_fornecedor", pd.Series([""] * len(df_res), index=df_res.index)), f_cnpj)]
+        if f_consumidor:
+            df_res = df_res[filtro_texto(df_res["consumidor"], f_consumidor)]
+        if f_fornecedor:
+            df_res = df_res[filtro_texto(df_res["fornecedor"], f_fornecedor)]
+        if f_tramitacao:
+            df_res = df_res[filtro_texto(df_res["tramitacao"], f_tramitacao)]
+
+
+        total = len(df_res)
+        if total > 0:
+            st.success(f"🎯 **{total} processo(s) encontrado(s)**")
+        st.divider()
+
+
+        if df_res.empty:
+            st.warning("⚠️ Nenhum processo encontrado com os filtros informados.")
+        else:
             for _, p in df_res.iterrows():
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
                     exibir_processo(p, df_p_master, df_h_master, chave=f"adv_{p['id']}")
-
 # --- RODAPE ---
 st.markdown("""<div style='position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; color: #888; font-size: 12px;'>Seindec AL - PROCON Arapiraca</div>""", unsafe_allow_html=True)

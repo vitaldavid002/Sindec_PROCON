@@ -194,7 +194,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     c1, c2 = st.columns(2)
     with c1:
         st.write(f"**👤 Consumidor:** {p.get('consumidor','')}  |  **🪪 CPF:** `{p.get('cpf_consumidor','')}`")
-        st.write(f"**📊 Status Atual:** {p.get('tramitacao','')}")
+        st.write(f"**📊 Situação Atual:** {p.get('tramitacao','')}")
     with c2:
         st.write(f"**🏢 Fornecedor:** {p.get('fornecedor','')}  |  **📄 CNPJ:** `{p.get('cnpj_fornecedor','')}`")
         st.write(f"**📝 Anotações:** {p.get('anotacoes','')}")

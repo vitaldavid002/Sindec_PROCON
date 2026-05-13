@@ -79,13 +79,17 @@ def criar_sessao(usuario):
     nova = pd.DataFrame([{"token": token, "usuario": usuario, "expiry": expiry}])
     salvar_dados("sessoes", pd.concat([df_s, nova], ignore_index=True))
     
-    # Salva o token na URL para persistência ao atualizar a página
-    st.query_params["token"] = token
+   # 2. Salva no Navegador (Cookie Real)
+    # max_age é em segundos (5h * 3600s)
+    cookie_manager.set("seindec_token", token, max_age=SESSION_HORAS * 3600)
+    
     st.session_state.logado = True
     st.session_state.usuario = usuario
 
 def verificar_sessao():
-    token = st.query_params.get("token")
+    # 1. Tenta pegar o token do Cookie do navegador
+    token = cookie_manager.get("seindec_token")
+    
     if not token:
         return None
         
@@ -98,6 +102,7 @@ def verificar_sessao():
     try:
         expiry = datetime.strptime(str(linha.iloc[0]["expiry"]), "%Y-%m-%d %H:%M:%S")
         if datetime.now(FUSO_BR).replace(tzinfo=None) > expiry:
+            cookie_manager.delete("seindec_token")
             return None
     except:
         return None
@@ -105,12 +110,12 @@ def verificar_sessao():
     return str(linha.iloc[0]["usuario"])
 
 def encerrar_sessao():
-    token = st.query_params.get("token")
+    token = cookie_manager.get("seindec_token")
     if token:
         df_s = ler_aba("sessoes")
         salvar_dados("sessoes", df_s[df_s["token"] != token])
     
-    st.query_params.clear()
+    cookie_manager.delete("seindec_token")
     st.session_state.logado = False
     st.session_state.usuario = None
     st.rerun()

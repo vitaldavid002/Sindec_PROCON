@@ -5,6 +5,7 @@ from streamlit_cookies_controller import CookieController
 from datetime import datetime, timedelta, timezone
 import secrets
 import re
+import extra_streamlit_components as stx
 
 # --- CONFIGURACAO DO FUSO HORARIO BRASILIA ---
 FUSO_BR = timezone(timedelta(hours=-3))

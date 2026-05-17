@@ -37,7 +37,6 @@ def verificar_senha(senha, hash_armazenado):
     return hash_senha(senha) == hash_armazenado
 
 # --- CACHE OTIMIZADO COM TTL E TAGS ---
-@st.cache_data(ttl=300, tags=["gsheets"])
 def ler_aba(nome_aba):
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)

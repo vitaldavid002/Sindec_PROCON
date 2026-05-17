@@ -44,7 +44,7 @@ def ler_aba(nome_aba):
         return df.dropna(how="all")
     except Exception:
         if nome_aba == "usuarios":
-            return pd.DataFrame(columns=["id", "login", "senha_hash"])
+            return pd.DataFrame(columns=["id","nome_completo", "login", "senha_hash"])
         elif nome_aba == "processos":
             return pd.DataFrame(columns=[
                 "id", "numero", "consumidor", "cpf_consumidor",

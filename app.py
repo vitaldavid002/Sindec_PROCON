@@ -37,7 +37,6 @@ def verificar_senha(senha, hash_armazenado):
     return hash_senha(senha) == hash_armazenado
 
 # --- CACHE OTIMIZADO COM TTL E TAGS ---
-@st.cache_data(ttl=300)
 def ler_aba(nome_aba):
     # Mapeamento oficial das colunas que cada aba DEVE possuir
     estruturas = {

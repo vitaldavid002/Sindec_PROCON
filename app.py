@@ -214,13 +214,16 @@ if not st.session_state.logado:
         with tab_cadastro:
             with st.form("form_registro"):
                 st.info("Crie uma conta para acessar o sistema.")
+                n_reg = st.text_input("Nome Completo")
                 u_reg = st.text_input("Novo Usuário (sem espaços)")
                 s_reg = st.text_input("Nova Senha", type="password")
                 s_conf = st.text_input("Confirme a Senha", type="password")
                 if st.form_submit_button("Cadastrar"):
                     df_u = ler_aba("usuarios")
-                    if not u_reg or not s_reg:
+                    if not n_reg or not u_reg or not s_reg:
                         st.warning("Preencha todos os campos.")
+                    elif n_reg in df_u["nome_completo"].values:
+                        st.error("Este nome já está cadastrado.")
                     elif u_reg in df_u["login"].values:
                         st.error("Este usuário já existe.")
                     elif s_reg != s_conf:
@@ -230,6 +233,7 @@ if not st.session_state.logado:
                         # FIX: Usar hash_senha ao registrar
                         novo_u = pd.DataFrame([{
                             "id": novo_id, 
+                            "nome_completo": n_reg,
                             "login": u_reg, 
                             "senha_hash": hash_senha(s_reg)
                         }])

@@ -3,3 +3,8 @@ st-gsheets-connection
 pandas
 streamlit-cookies-controller
 extra-streamlit-components
+openpyxl==3.11.0
+gspread==6.1.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.108.0

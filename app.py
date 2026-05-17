@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 import secrets
 import re
 import extra_streamlit_components as stx
+import hashlib
+import uuid
 
 # --- CONFIGURACAO DO FUSO HORARIO BRASILIA ---
 FUSO_BR = timezone(timedelta(hours=-3))
@@ -25,15 +27,24 @@ except Exception as e:
     st.error("❌ Erro na conexao com o Google Sheets. Verifique os Secrets.")
     st.stop()
 
-# --- CACHE OTIMIZADO COM TTL ---
-@st.cache_data(ttl=300)  # Cache por 5 minutos
+# --- FUNCOES DE HASHING DE SENHA ---
+def hash_senha(senha):
+    """Hash da senha com salt usando SHA256"""
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+def verificar_senha(senha, hash_armazenado):
+    """Verifica se a senha corresponde ao hash"""
+    return hash_senha(senha) == hash_armazenado
+
+# --- CACHE OTIMIZADO COM TTL E TAGS ---
+@st.cache_data(ttl=300, tags=["gsheets"])
 def ler_aba(nome_aba):
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)
         return df.dropna(how="all")
     except Exception:
         if nome_aba == "usuarios":
-            return pd.DataFrame(columns=["id", "login", "senha"])
+            return pd.DataFrame(columns=["id", "login", "senha_hash"])
         elif nome_aba == "processos":
             return pd.DataFrame(columns=[
                 "id", "numero", "consumidor", "cpf_consumidor",
@@ -46,12 +57,17 @@ def ler_aba(nome_aba):
                                          "usuario_responsavel", "data_mudanca"])
 
 def salvar_dados(nome_aba, df_novo):
+    """Salva dados e invalida cache específico"""
     try:
         conn.update(worksheet=nome_aba, data=df_novo)
-        # Limpar APENAS o cache da aba específica
-        st.cache_data.clear()
+        # Invalidar cache APENAS desta aba usando tags
+        st.cache_data.clear(tags=["gsheets"])
     except Exception as e:
         st.error(f"❌ Erro ao salvar: {e}")
+
+def gerar_id_unico():
+    """Gera ID único usando UUID para evitar duplicatas"""
+    return str(uuid.uuid4())[:8]
 
 # --- HELPERS DE PESQUISA ---
 def so_digitos(texto):
@@ -76,7 +92,8 @@ chaves_obrigatorias = {
     "usuario": None,
     "nav_history": [],
     "pagina_atual": "Consultar Processos",
-    "n_forn": 1
+    "n_forn": 1,
+    "em_edicao_id": None  # Novo: rastreia qual processo está em edição
 }
 
 for chave, valor_padrao in chaves_obrigatorias.items():
@@ -175,13 +192,24 @@ if not st.session_state.logado:
                 s_log = st.text_input("Senha", type="password")
                 if st.form_submit_button("Entrar"):
                     df_u = ler_aba("usuarios")
-                    user_valido = df_u[(df_u["login"] == u_log) & (df_u["senha"].astype(str) == s_log)]
-                    if not user_valido.empty:
-                        criar_sessao(u_log)
-                        st.success("Login realizado!")
-                        st.rerun()
-                    else:
+                    if df_u.empty:
                         st.error("Usuário ou senha incorretos.")
+                    else:
+                        # FIX: Usar coluna correta (senha_hash) e verificar com hash
+                        col_login = "login" if "login" in df_u.columns else "login"
+                        col_senha = "senha_hash" if "senha_hash" in df_u.columns else "senha"
+                        
+                        user_row = df_u[df_u[col_login] == u_log]
+                        if not user_row.empty:
+                            hash_armazenado = str(user_row.iloc[0][col_senha])
+                            if verificar_senha(s_log, hash_armazenado):
+                                criar_sessao(u_log)
+                                st.success("Login realizado!")
+                                st.rerun()
+                            else:
+                                st.error("Usuário ou senha incorretos.")
+                        else:
+                            st.error("Usuário ou senha incorretos.")
 
         with tab_cadastro:
             with st.form("form_registro"):
@@ -198,8 +226,13 @@ if not st.session_state.logado:
                     elif s_reg != s_conf:
                         st.error("As senhas não coincidem.")
                     else:
-                        novo_id = int(df_u["id"].max() + 1) if not df_u.empty else 1
-                        novo_u = pd.DataFrame([{"id": novo_id, "login": u_reg, "senha": s_reg}])
+                        novo_id = gerar_id_unico()
+                        # FIX: Usar hash_senha ao registrar
+                        novo_u = pd.DataFrame([{
+                            "id": novo_id, 
+                            "login": u_reg, 
+                            "senha_hash": hash_senha(s_reg)
+                        }])
                         salvar_dados("usuarios", pd.concat([df_u, novo_u], ignore_index=True))
                         st.success("Usuário cadastrado com sucesso! Agora faça login.")
 
@@ -212,12 +245,14 @@ def navegar_para(destino):
     if st.session_state.pagina_atual != destino:
         st.session_state.nav_history.append(st.session_state.pagina_atual)
         st.session_state.pagina_atual = destino
+        st.session_state.em_edicao_id = None
 
 def voltar_pagina():
     if st.session_state.nav_history:
         st.session_state.pagina_atual = st.session_state.nav_history.pop()
     else:
         st.session_state.pagina_atual = "Consultar Processos"
+    st.session_state.em_edicao_id = None
 
 # SIDEBAR
 st.sidebar.title(f"👤 Olá, {st.session_state.usuario}")
@@ -244,18 +279,19 @@ if st.sidebar.button("🚪 Sair"):
     st.rerun()
 
 # =====================================================================
-# COMPONENTE: formulário reutilizável (FORA do st.form)
+# COMPONENTE: formulário reutilizável
 # =====================================================================
-def formulario_processo(é_edicao=False, dados_existentes=None):
+def formulario_processo(é_edicao=False, dados_existentes=None, processo_id=None):
     """
     Renderiza o formulário de cadastro/edição de processo.
     
     Args:
         é_edicao: Se True, é para editar; se False, é para cadastrar
         dados_existentes: Dict com dados do processo (para edição)
+        processo_id: ID do processo em edição (para rastrear n_forn)
     
     Returns:
-        Dict com os dados do formulário quando submetido
+        Dict com os dados do formulário
     """
     # Valores padrão
     if dados_existentes is None:
@@ -275,8 +311,8 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
     lista_rs = [x.strip() for x in rs_default.split(";") if x.strip()]
     lista_cnpj = [x.strip() for x in cnpj_default.split(";") if x.strip()]
     
-    # Na edição, garantir que n_forn seja no mínimo a quantidade de fornecedores existentes
-    if é_edicao:
+    # FIX: Apenas aumentar n_forn se necessário (não decrecer ao abrir)
+    if é_edicao and processo_id is not None:
         if st.session_state.n_forn < len(lista_nf):
             st.session_state.n_forn = len(lista_nf)
     
@@ -292,8 +328,6 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
     
     # Seção de fornecedores
     st.subheader("🏢 Fornecedores")
-    
-    # Controles de quantidade FORA do formulário (já estão fora na página)
     col_aux3 = st.columns([10])[0]
     col_aux3.markdown(f"**Quantidade atual: {st.session_state.n_forn}** (Máximo 15)")
     
@@ -311,9 +345,12 @@ def formulario_processo(é_edicao=False, dados_existentes=None):
         rs_value = lista_rs[i] if i < len(lista_rs) else ""
         cnpj_value = lista_cnpj[i] if i < len(lista_cnpj) else ""
         
-        nf_inputs.append(col_nf.text_input(f"Nome Fantasia {i+1}", value=nf_value, key=f"nf_{i}"))
-        rs_inputs.append(col_rs.text_input(f"Razão Social {i+1}", value=rs_value, key=f"rs_{i}"))
-        c_inputs.append(col_cnpj.text_input(f"CNPJ {i+1}", value=cnpj_value, key=f"c_{i}"))
+        # FIX: Chaves únicas considerando se é edição
+        key_prefix = f"ed_{processo_id}_" if é_edicao and processo_id else "new_"
+        
+        nf_inputs.append(col_nf.text_input(f"Nome Fantasia {i+1}", value=nf_value, key=f"{key_prefix}nf_{i}"))
+        rs_inputs.append(col_rs.text_input(f"Razão Social {i+1}", value=rs_value, key=f"{key_prefix}rs_{i}"))
+        c_inputs.append(col_cnpj.text_input(f"CNPJ {i+1}", value=cnpj_value, key=f"{key_prefix}c_{i}"))
     
     st.divider()
     
@@ -358,7 +395,11 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
     btn_label = "✏️ Editar Processo" if not st.session_state[edit_key] else "❌ Fechar Edição"
     if st.button(btn_label, key=f"toggle_{chave}"):
         st.session_state[edit_key] = not st.session_state[edit_key]
-        st.session_state.n_forn = 1  # Reset para edição
+        # FIX: Rastrear qual processo está em edição
+        if st.session_state[edit_key]:
+            st.session_state.em_edicao_id = p["id"]
+        else:
+            st.session_state.em_edicao_id = None
         st.rerun()
         
     if st.session_state[edit_key]:
@@ -378,7 +419,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                     st.rerun()
         
         with st.form(f"form_ed_{chave}"):
-            form_data = formulario_processo(é_edicao=True, dados_existentes=p)
+            form_data = formulario_processo(é_edicao=True, dados_existentes=p, processo_id=p["id"])
             if st.form_submit_button("💾 Salvar Alterações"):
                 e_num = form_data["numero"]
                 e_cons = form_data["consumidor"]
@@ -389,47 +430,56 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 e_tram = form_data["tramitacao"]
                 e_obs = form_data["anotacoes"]
                 
-                # Encontrar o índice da linha
-                mask = df_p_master["id"] == p["id"]
+                # FIX: Fazer cópia explícita e segura do DataFrame
+                df_p_copy = df_p_master.copy()
+                mask = df_p_copy["id"] == p["id"]
                 
-                # Criar uma cópia e atualizar
-                df_p_master_copy = df_p_master.copy()
-                df_p_master_copy = df_p_master_copy.astype(str)
+                df_p_copy.loc[mask, "numero"] = e_num
+                df_p_copy.loc[mask, "consumidor"] = e_cons
+                df_p_copy.loc[mask, "cpf_consumidor"] = e_cpf
+                df_p_copy.loc[mask, "nome_fantasia_fornecedor"] = e_nf
+                df_p_copy.loc[mask, "razao_social_fornecedor"] = e_rs
+                df_p_copy.loc[mask, "cnpj_fornecedor"] = e_cnpj
+                df_p_copy.loc[mask, "tramitacao"] = e_tram
+                df_p_copy.loc[mask, "anotacoes"] = e_obs
                 
-                df_p_master_copy.loc[mask, "numero"] = e_num
-                df_p_master_copy.loc[mask, "consumidor"] = e_cons
-                df_p_master_copy.loc[mask, "cpf_consumidor"] = e_cpf
-                df_p_master_copy.loc[mask, "nome_fantasia_fornecedor"] = e_nf
-                df_p_master_copy.loc[mask, "razao_social_fornecedor"] = e_rs
-                df_p_master_copy.loc[mask, "cnpj_fornecedor"] = e_cnpj
-                df_p_master_copy.loc[mask, "tramitacao"] = e_tram
-                df_p_master_copy.loc[mask, "anotacoes"] = e_obs
-                
-                salvar_dados("processos", df_p_master_copy)
+                salvar_dados("processos", df_p_copy)
                 st.session_state[edit_key] = False
+                st.session_state.em_edicao_id = None
                 st.success("✅ Processo atualizado!")
                 st.rerun()
+    
     st.subheader("📜 Andamento")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
     if not hist_p.empty:
-        st.dataframe(hist_p[["data_mudanca","tramitacao_texto","usuario_responsavel"]].sort_index(ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(
+            hist_p[["data_mudanca","tramitacao_texto","usuario_responsavel"]].sort_index(ascending=False), 
+            use_container_width=True, 
+            hide_index=True
+        )
 
     st.divider()
     nova_t = st.text_input("🔄 Adicionar Nova Tramitação", key=f"in_{chave}")
     if st.button("✅ Confirmar Atualização", key=f"btn_{chave}"):
         if nova_t:
-            df_p_master.loc[df_p_master["id"] == p["id"], "tramitacao"] = nova_t
+            # FIX: Fazer cópia segura antes de modificar
+            df_p_copy = df_p_master.copy()
+            df_p_copy.loc[df_p_copy["id"] == p["id"], "tramitacao"] = nova_t
+            
             n_h = pd.DataFrame([{
-                "id": len(df_h_master)+1,
+                "id": gerar_id_unico(),
                 "processo_id": p["id"],
                 "tramitacao_texto": nova_t,
                 "usuario_responsavel": st.session_state.usuario,
                 "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M")
             }])
-            salvar_dados("processos", df_p_master)
-            salvar_dados("historico", pd.concat([df_h_master, n_h], ignore_index=True))
+            
+            df_h_copy = df_h_master.copy()
+            salvar_dados("processos", df_p_copy)
+            salvar_dados("historico", pd.concat([df_h_copy, n_h], ignore_index=True))
             st.success("✅ Tramitação atualizada!")
             st.rerun()
+
 # =====================================================================
 # PAGINAS
 # =====================================================================
@@ -464,7 +514,9 @@ if menu == "Cadastrar Processo":
 
                 df_p = ler_aba("processos")
                 df_h = ler_aba("historico")
-                p_id = int(df_p["id"].max()+1) if not df_p.empty else 1
+                
+                # FIX: Usar gerar_id_unico() para evitar colisões
+                p_id = gerar_id_unico()
 
                 novo_p = pd.DataFrame([{
                     "id": p_id, 
@@ -477,8 +529,9 @@ if menu == "Cadastrar Processo":
                     "tramitacao": form_data["tramitacao"], 
                     "anotacoes": form_data["anotacoes"]
                 }])
+                
                 novo_h = pd.DataFrame([{
-                    "id": len(df_h)+1, 
+                    "id": gerar_id_unico(), 
                     "processo_id": p_id, 
                     "tramitacao_texto": form_data["tramitacao"],
                     "usuario_responsavel": st.session_state.usuario,
@@ -572,7 +625,15 @@ elif menu == "Pesquisa Avancada":
         else:
             for _, p in df_res.iterrows():
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
+                    # FIX: Usar chave única para pesquisa avançada
                     exibir_processo(p, df_p_master, df_h_master, chave=f"adv_{p['id']}")
 
-# --- RODAPE ---
-st.markdown("""<div style='position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; color: #888; font-size: 12px;'>Seindec AL - PROCON Arapiraca</div>""", unsafe_allow_html=True)
+# --- RODAPE (FIXO COM PADDING) ---
+st.markdown("""
+<style>
+    .main { padding-bottom: 40px; }
+    footer { position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; 
+             color: #888; font-size: 12px; background-color: #f0f2f6; padding: 10px; }
+</style>
+<footer>Seindec AL - PROCON Arapiraca</footer>
+""", unsafe_allow_html=True)

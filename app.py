@@ -572,10 +572,23 @@ elif menu == "Consultar Processos":
     df_h_master = ler_aba("historico")
     busca = st.text_input("🔎 Digite o nome do consumidor ou número do processo para buscar...")
 
-    if busca.strip():
+        if busca.strip():
+        # Converte o termo de busca para minúsculo e remove espaços extras nas pontas
+        termo_busca = busca.strip().lower()
+        
+        # Filtro por Nome do Consumidor
+        f_nome = df_p_master["consumidor"].astype(str).str.lower().str.contains(termo_busca, na=False)
+        
+        # Filtro por Número do Processo (Trata o número puramente como texto, aceitando letras e hashes)
+        f_num = df_p_master["numero"].astype(str).str.lower().str.contains(termo_busca, na=False)
+        
+        # Se o usuário digitou apenas números, mantemos a busca flexível por dígitos limpos também
         d = so_digitos(busca)
-        f_nome = df_p_master["consumidor"].astype(str).str.contains(busca.strip(), case=False, na=False)
-        f_num = df_p_master["numero"].astype(str).apply(so_digitos).str.contains(d, na=False) if d else df_p_master["numero"].astype(str).str.contains(busca.strip(), case=False, na=False)
+        if d:
+            f_num_limpo = df_p_master["numero"].astype(str).apply(so_digitos).str.contains(d, na=False)
+            f_num = f_num | f_num_limpo
+
+        # Combina os filtros usando o operador OR (|)
         df_ex = df_p_master[f_nome | f_num]
 
         if df_ex.empty:
@@ -583,8 +596,10 @@ elif menu == "Consultar Processos":
         else:
             st.success(f"📋 Exibindo {len(df_ex)} resultado(s).")
             for _, p in df_ex.iterrows():
+                # Forçamos a chave a ser uma string limpa baseada no ID (seja ele número ou hash string)
+                chave_unica = f"proc_{p['id']}"
                 with st.expander(f"📁 {p['numero']} - {p['consumidor']}"):
-                    exibir_processo(p, df_p_master, df_h_master, chave=str(p["id"]))
+                    exibir_processo(p, df_p_master, df_h_master, chave=chave_unica)
     else:
         st.info("💡 Digite algo acima para pesquisar os processos cadastrados.")
 

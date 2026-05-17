@@ -556,7 +556,7 @@ if menu == "Cadastrar Processo":
                     "id": gerar_id_unico(), 
                     "processo_id": p_id, 
                     "tramitacao_texto": form_data["tramitacao"],
-                    "usuario_responsavel": st.session_state.usuario,
+                    "usuario_responsavel": nome_exibicao,
                     "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M")
                 }])
 

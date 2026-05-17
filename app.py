@@ -39,22 +39,38 @@ def verificar_senha(senha, hash_armazenado):
 # --- CACHE OTIMIZADO COM TTL E TAGS ---
 @st.cache_data(ttl=300)
 def ler_aba(nome_aba):
+    # Mapeamento oficial das colunas que cada aba DEVE possuir
+    estruturas = {
+        "usuarios": ["id", "nome_completo", "login", "senha_hash"],
+        "processos": ["id", "numero", "consumidor", "cpf_consumidor",
+                      "nome_fantasia_fornecedor", "razao_social_fornecedor", 
+                      "cnpj_fornecedor", "tramitacao", "anotacoes"],
+        "sessoes": ["token", "usuario", "expiry"],
+        "historico": ["id", "processo_id", "tramitacao_texto", 
+                      "usuario_responsavel", "data_mudanca"]
+    }
+    
+    colunas_esperadas = estruturas.get(nome_aba, [])
+
     try:
         df = conn.read(worksheet=nome_aba, ttl=0)
-        return df.dropna(how="all")
+        if df is not None and not df.empty:
+            # 1. Remove espaços nas pontas e força tudo para letras minúsculas
+            df.columns = df.columns.astype(str).str.strip().str.lower()
+            
+            # 2. Garante que mesmo se alguém apagar uma coluna no Sheets, o app cria ela vazia
+            for col in colunas_esperadas:
+                if col not in df.columns:
+                    df[col] = ""
+                    
+            return df.dropna(how="all")
     except Exception:
-        if nome_aba == "usuarios":
-            return pd.DataFrame(columns=["id","nome_completo", "login", "senha_hash"])
-        elif nome_aba == "processos":
-            return pd.DataFrame(columns=[
-                "id", "numero", "consumidor", "cpf_consumidor",
-                "nome_fantasia_fornecedor", "razao_social_fornecedor", "cnpj_fornecedor", "tramitacao", "anotacoes"
-            ])
-        elif nome_aba == "sessoes":
-            return pd.DataFrame(columns=["token", "usuario", "expiry"])
-        else:
-            return pd.DataFrame(columns=["id", "processo_id", "tramitacao_texto",
-                                         "usuario_responsavel", "data_mudanca"])
+        # Entra aqui apenas se houver erro crítico de conexão ou ausência da aba
+        pass
+        
+    # Retorna um DataFrame vazio com a estrutura correta caso a planilha esteja zerada ou falhe
+    return pd.DataFrame(columns=colunas_esperadas)
+
 
 def salvar_dados(nome_aba, df_novo):
     """Salva dados e invalida cache específico"""

@@ -572,7 +572,7 @@ elif menu == "Consultar Processos":
     df_h_master = ler_aba("historico")
     busca = st.text_input("🔎 Digite o nome do consumidor ou número do processo para buscar...")
 
-      if busca.strip():
+    if busca.strip():
         # Converte o termo de busca para minúsculo e remove espaços extras nas pontas
         termo_busca = busca.strip().lower()
         

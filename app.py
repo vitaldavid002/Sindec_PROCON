@@ -61,7 +61,7 @@ def salvar_dados(nome_aba, df_novo):
     try:
         conn.update(worksheet=nome_aba, data=df_novo)
         # Invalidar cache APENAS desta aba usando tags
-        st.cache_data.clear(tags=["gsheets"])
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"❌ Erro ao salvar: {e}")
 
@@ -166,6 +166,23 @@ def encerrar_sessao():
     st.session_state.usuario = None
     st.rerun()
 
+# 1. Lê a aba de usuários (como a função tem cache, isso será super rápido)
+df_usuarios = ler_aba("usuarios")
+
+# 2. Pega o login salvo na sessão atual
+login_atual = st.session_state.usuario
+
+# 3. Filtra o DataFrame para achar a linha específica desse usuário
+linha_usuario = df_usuarios[df_usuarios["login"] == login_atual]
+
+# 4. Verifica se encontrou o usuário para extrair o nome completo de forma segura
+if not linha_usuario.empty:
+    # Pega o valor da coluna 'nome_completo' do primeiro resultado encontrado
+    nome_exibicao = linha_usuario.iloc[0]["nome_completo"]
+else:
+    # Fallback de segurança: se por acaso não achar na planilha, mostra o login mesmo
+    nome_exibicao = login_atual
+
 # --- INITIALIZE SESSION STATE ---
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -258,22 +275,6 @@ def voltar_pagina():
         st.session_state.pagina_atual = "Consultar Processos"
     st.session_state.em_edicao_id = None
 
-# 1. Lê a aba de usuários (como a função tem cache, isso será super rápido)
-df_usuarios = ler_aba("usuarios")
-
-# 2. Pega o login salvo na sessão atual
-login_atual = st.session_state.usuario
-
-# 3. Filtra o DataFrame para achar a linha específica desse usuário
-linha_usuario = df_usuarios[df_usuarios["login"] == login_atual]
-
-# 4. Verifica se encontrou o usuário para extrair o nome completo de forma segura
-if not linha_usuario.empty:
-    # Pega o valor da coluna 'nome_completo' do primeiro resultado encontrado
-    nome_exibicao = linha_usuario.iloc[0]["nome_completo"]
-else:
-    # Fallback de segurança: se por acaso não achar na planilha, mostra o login mesmo
-    nome_exibicao = login_atual
 
 # 5. Exibe o título na barra lateral
 st.sidebar.title(f"👤 Olá, {nome_exibicao}")
@@ -491,7 +492,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 "id": gerar_id_unico(),
                 "processo_id": p["id"],
                 "tramitacao_texto": nova_t,
-                "usuario_responsavel": st.session_state.usuario,
+                "usuario_responsavel": nome_exibicao,
                 "data_mudanca": datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M")
             }])
             

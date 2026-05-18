@@ -471,9 +471,7 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 df_p_copy = df_p_master.copy()
     
     # Força TODAS as colunas de texto a aceitarem strings (evita o TypeError)
-               colunas_texto=["numero", "consumidor", "cpf_consumidor", 
-                  "nome_fantasia_fornecedor", "razao_social_fornecedor", 
-                  "cnpj_fornecedor", "tramitacao", "anotacoes"]
+               colunas_texto=["numero", "consumidor","cpf_consumidor","nome_fantasia_fornecedor", "razao_social_fornecedor","cnpj_fornecedor", "tramitacao", "anotacoes"]
                 for col in colunas_texto:
                    if col in df_p_copy.columns:
                       df_p_copy[col] = df_p_copy[col].astype(str)

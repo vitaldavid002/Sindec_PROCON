@@ -469,6 +469,17 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 
                 # FIX: Fazer cópia explícita e segura do DataFrame
                 df_p_copy = df_p_master.copy()
+    
+    # Força TODAS as colunas de texto a aceitarem strings (evita o TypeError)
+               colunas_texto = [
+                  "numero", "consumidor", "cpf_consumidor", 
+                  "nome_fantasia_fornecedor", "razao_social_fornecedor", 
+                  "cnpj_fornecedor", "tramitacao", "anotacoes"
+    ]
+                for col in colunas_texto:
+                   if col in df_p_copy.columns:
+                      df_p_copy[col] = df_p_copy[col].astype(str)
+  
                 mask = df_p_copy["id"] == p["id"]
                 
                 df_p_copy.loc[mask, "numero"] = e_num

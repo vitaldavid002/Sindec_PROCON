@@ -466,18 +466,18 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 e_cnpj = ";".join([c for c in form_data["cnpj_fornecedor"] if c.strip()])
                 e_tram = form_data["tramitacao"]
                 e_obs = form_data["anotacoes"]
-                
-                # FIX: Fazer cópia explícita e segura do DataFrame
+
+                # Cópia segura do DataFrame
                 df_p_copy = df_p_master.copy()
-    
-    # Força TODAS as colunas de texto a aceitarem strings (evita o TypeError)
-               colunas_texto=["numero", "consumidor","cpf_consumidor","nome_fantasia_fornecedor", "razao_social_fornecedor","cnpj_fornecedor", "tramitacao", "anotacoes"]
+
+                # Força as colunas a virarem texto para evitar conflitos de tipos (Dtype)
+                colunas_texto = ["numero", "consumidor", "cpf_consumidor", "nome_fantasia_fornecedor", "razao_social_fornecedor", "cnpj_fornecedor", "tramitacao", "anotacoes"]
                 for col in colunas_texto:
-                   if col in df_p_copy.columns:
-                      df_p_copy[col] = df_p_copy[col].astype(str)
-  
+                    if col in df_p_copy.columns:
+                        df_p_copy[col] = df_p_copy[col].astype(str)
+
                 mask = df_p_copy["id"] == p["id"]
-                
+
                 df_p_copy.loc[mask, "numero"] = e_num
                 df_p_copy.loc[mask, "consumidor"] = e_cons
                 df_p_copy.loc[mask, "cpf_consumidor"] = e_cpf
@@ -486,12 +486,13 @@ def exibir_processo(p, df_p_master, df_h_master, chave):
                 df_p_copy.loc[mask, "cnpj_fornecedor"] = e_cnpj
                 df_p_copy.loc[mask, "tramitacao"] = e_tram
                 df_p_copy.loc[mask, "anotacoes"] = e_obs
-                
+
                 salvar_dados("processos", df_p_copy)
                 st.session_state[edit_key] = False
                 st.session_state.em_edicao_id = None
                 st.success("✅ Processo atualizado!")
                 st.rerun()
+
     
     st.subheader("📜 Andamento")
     hist_p = df_h_master[df_h_master["processo_id"].astype(str) == str(p["id"])]
